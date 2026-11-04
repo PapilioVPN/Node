@@ -92,6 +92,18 @@ Successful API readiness is distinct from the upstream signal-handler timing
 [limitation](docs/engines/xray.md#owned-process-contract). This benchmark requires
 a clean native shutdown and fails on abnormal termination.
 
+To measure the explicit restart operation over a ready native instance:
+
+```bash
+PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -run '^$' -bench '^BenchmarkInstanceRestart$' -benchtime=5x -benchmem -count=1 ./tests/integration
+```
+
+Restart acceptance covers normal replacement, crash recovery, interrupted
+replacement admission and actual local payload forwarding before/after restart.
+Controlled `testing/synctest` cases also verify conflicting operations, deadlines,
+late sessions and incomplete cleanup; race tests mix bounded concurrent lifecycle
+calls and assert at most one owned execution.
+
 ## Reporting a problem
 
 Include `node version --json`, the command or operation, expected/actual results
@@ -137,3 +149,7 @@ service imports no engine implementation, process API or generated messages;
 `service.go` owns state/snapshots, while `start.go` and `stop.go` own their respective
 workflows. Unit tests use controlled contracts; integration tests compose the
 same service with the real Xray launcher and verify actual process termination.
+`restart.go` owns the reservation and recovery result. During restart, private
+lifecycle phases require its identity; public callers cannot bypass admission.
+Restart shares the existing start/stop execution instead of constructing another
+engine owner or duplicating native lifecycle code.

@@ -9,6 +9,11 @@ import (
 // Repeated callers join the current operation; a cancelled caller can join later.
 // Shutdown cancels and joins any admitted reuse probe before admitting a new run.
 func (s *Service) Stop(ctx context.Context) (Snapshot, error) {
+	return s.stop(ctx, nil)
+}
+
+// owner keeps restart's stop phase inside its existing reservation.
+func (s *Service) stop(ctx context.Context, owner *restartAttempt) (Snapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return s.Status(), err
 	}
@@ -17,6 +22,22 @@ func (s *Service) Stop(ctx context.Context) (Snapshot, error) {
 	if err := ctx.Err(); err != nil {
 		s.mu.Unlock()
 		return status, err
+	}
+	if s.restarting != owner {
+		attempt := s.restarting
+		attempt.stopRequested = true
+		s.phase = PhaseStopping
+		if s.starting != nil {
+			s.starting.stopRequested = true
+		}
+		s.mu.Unlock()
+		attempt.cancel()
+		select {
+		case <-attempt.done:
+			return s.Status(), attempt.cleanupErr
+		case <-ctx.Done():
+			return s.Status(), ctx.Err()
+		}
 	}
 	if s.starting != nil {
 		attempt := s.starting

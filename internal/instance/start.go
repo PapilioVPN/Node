@@ -9,6 +9,11 @@ import (
 // repairs a failed instance implicitly. Overlapping starts return ErrBusy, including
 // while a reuse probe runs. Cancellation before commit joins cleanup.
 func (s *Service) Start(ctx context.Context) (Snapshot, error) {
+	return s.start(ctx, nil)
+}
+
+// owner permits only the reserved restart to enter its replacement phase.
+func (s *Service) start(ctx context.Context, owner *restartAttempt) (Snapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return s.Status(), err
 	}
@@ -18,9 +23,13 @@ func (s *Service) Start(ctx context.Context) (Snapshot, error) {
 		s.mu.Unlock()
 		return status, err
 	}
-	if s.probing != nil {
+	if s.restarting != owner || s.probing != nil {
 		s.mu.Unlock()
 		return status, ErrBusy
+	}
+	if owner != nil && owner.stopRequested {
+		s.mu.Unlock()
+		return status, context.Canceled
 	}
 	switch status.Phase {
 	case PhaseStarting, PhaseStopping:

@@ -68,6 +68,15 @@ type Snapshot struct {
 	LastFailure     error
 }
 
+// RestartResult separates the previous execution's stop outcome from replacement
+// readiness. StopFailure may be non-nil after a successful recovery. Current is a
+// snapshot, not a durable operation receipt; errors remain shared read-only.
+type RestartResult struct {
+	Previous    Snapshot
+	Current     Snapshot
+	StopFailure error
+}
+
 // ISession owns one managed engine process and supports concurrent calls. Observe
 // performs no I/O. Probe honors cancellation and adapter limits, including while
 // Stop runs. Stop owns bounded cleanup even if ctx expires;

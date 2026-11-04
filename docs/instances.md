@@ -20,6 +20,10 @@ There is no management endpoint or engine CLI command in this revision.
 - `Stop(ctx)` interrupts startup or owns one shutdown operation. Its context bounds
   caller waiting; accepted cleanup continues and another stop can join it. No
   application state lock is held across engine work.
+- `Restart(ctx)` explicitly replaces the captured binding from ready, failed or
+  stopped state. It joins previous cleanup before starting a fresh execution and
+  waits for native readiness. It returns `RestartResult` with previous/current
+  snapshots and the previous stop failure, separately from the operation error.
 
 A context already cancelled at admission prevents both start and stop from doing
 engine work. Cancellation during startup joins cleanup before returning; a session
@@ -39,6 +43,37 @@ Another caller may have started a later run when a completed stop waiter returns
 The stop error describes the joined cleanup; use the snapshot's phase and process
 facts to interpret current state. These internal synchronous operations do not
 provide a durable replay key, an automatic retry or configuration replacement.
+
+### Restart and recovery
+
+One reservation covers both restart phases. `Start` and another `Restart` return
+`ErrBusy` during that transition; restart also rejects already-active startup,
+shutdown or reuse probes. There is no request queue or implicit health loop.
+`Stop` interrupts restart, joins all accepted cleanup and prevents a replacement
+from remaining live after stop completes. Cancelling a stop waiter ends only its
+wait; another stop can join the same restart completion.
+
+Cancellation during previous shutdown waits for its bounded cleanup and prevents
+replacement. Cancellation before replacement startup commits joins candidate
+cleanup. A successfully committed replacement outlives the restart request.
+This uses the same admitted start/stop paths as standalone lifecycle calls.
+
+`Previous` records the old execution's final stop snapshot. If admission is
+rejected, no stop occurs and both snapshots describe the state read at admission.
+`Current` records the resulting application state. `StopFailure` preserves the
+old native shutdown error even if confirmed cleanup permits successful recovery.
+For example, recovering a SIGKILL-terminated engine can return nil operation error,
+a ready `Current` and the inspectable SIGKILL cause in `StopFailure`.
+
+Incomplete old cleanup returns `ErrCleanupIncomplete` and blocks a new execution.
+Failed replacement returns its actual error with historical `AppliedRevision`;
+state is failed, or stopped after an interrupting `Stop` confirms release. The
+old process is already gone. No automatic rollback or
+retries are attempted. A later explicit restart can recover a released binding.
+Cancellation and cleanup failure remain independently inspectable when both occur.
+Restart is intentionally disruptive and repeated successful calls each create a
+fresh execution; it is not an idempotent retry contract or a live configuration
+change. These distinctions apply before any transport maps the result.
 
 ## State meaning
 
@@ -86,12 +121,13 @@ mock engine:
 
 | Outcome | Verification |
 | --- | --- |
-| Usable execution across repeated cycles | Start, native API readiness, unchanged-session reuse, exact local HTTP payload forwarding and stop; each stop confirms child reaping and owned runtime removal. Requests after stop cannot reach the target through the proxy. |
+| Usable execution across repeated cycles | Start, native API readiness, unchanged-session reuse, exact local HTTP payload forwarding before/after restart and stop; each replacement/stop confirms child reaping and owned runtime removal. Requests after stop cannot reach the target through the proxy. |
 | Request lifetime independence | Cancelling a completed start request leaves its successful session available for probing and real payload forwarding. |
 | Native validation rejection | Invalid engine configuration retains exit code 23 and bounded private diagnostics, commits no revision and requires explicit acknowledgement. |
 | Runtime startup failure and recovery | An occupied loopback port retains native exit code 255 without waiting for a readiness timeout. Explicit stop, release of the conflict and start recover the same binding. Borrowed listeners/files remain intact. |
 | Process owner termination | Ending the injected lifetime reaps the child, closes the native client and removes owned runtime files. Observation records the unrequested exit and keeps applied history; an ended lifetime cannot launch another engine. |
 | Unexpected exit and interrupted admission | SIGKILL and concurrent stop tests preserve actual exit causes, reject late application commits and confirm native cleanup before explicit recovery. |
+| Explicit restart and interruption | Normal replacement and recovery after SIGKILL retain old termination facts, admit a fresh ready engine and remove the previous run directory. Stop during real replacement admission cleans both executions and prevents resurrection. |
 
 The forwarding fixture uses a private Unix **HTTP proxy** and a loopback HTTP
 target, with bounded payloads and client deadlines. It exercises unchanged native
@@ -120,3 +156,8 @@ observation and validation. It reports startup/readiness and shutdown/cleanup
 separately. Allocation results cover Node/client allocations, not Xray process
 memory. A non-graceful native stop fails the measurement; benchmark results must
 not silently treat forced termination as successful shutdown.
+
+The restart benchmark measures the actual reserved stop/start operation over a
+ready native session. It requires clean old shutdown and fresh readiness; it fails
+if the previous stop error is non-nil. Measurements include native version/check/
+run/API work, not just the in-memory reservation or payload throughput.

@@ -44,6 +44,18 @@ func TestInstanceProxiesLocalTrafficAcrossLifecycleCycles(t *testing.T) {
 	t.Cleanup(transport.CloseIdleConnections)
 	client := &http.Client{Transport: transport, Timeout: 3 * time.Second}
 	payload := bytes.Repeat([]byte("Papilio Node acceptance\x00\xff\n"), 64)
+	assertForwarded := func(want int64) {
+		t.Helper()
+		response, err := client.Post(target.URL, "application/octet-stream", bytes.NewReader(payload))
+		if err != nil {
+			t.Fatalf("real Xray did not forward the local request: %v", err)
+		}
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, 4097))
+		closeErr := response.Body.Close()
+		if readErr != nil || closeErr != nil || response.StatusCode != http.StatusOK || !bytes.Equal(body, payload) || received.Load() != want {
+			t.Fatalf("proxy payload/outcome mismatch: status %d, read %v, close %v", response.StatusCode, readErr, closeErr)
+		}
+	}
 	for cycle := range 3 {
 		request, cancelRequest := context.WithTimeout(t.Context(), 10*time.Second)
 		started, err := service.Start(request)
@@ -55,15 +67,15 @@ func TestInstanceProxiesLocalTrafficAcrossLifecycleCycles(t *testing.T) {
 		if err != nil || reused.Process.PID != started.Process.PID || reused.Phase != instance.PhaseReady || reused.AppliedRevision != started.DesiredRevision {
 			t.Fatalf("completed start request changed the native session: %+v, %v", reused, err)
 		}
-		response, err := client.Post(target.URL, "application/octet-stream", bytes.NewReader(payload))
-		if err != nil {
-			t.Fatalf("cycle %d: real Xray did not forward the local request: %v", cycle, err)
+		assertForwarded(int64(cycle*2 + 1))
+		restarted, err := service.Restart(t.Context())
+		if err != nil || restarted.Current.Phase != instance.PhaseReady || restarted.Current.AppliedRevision != started.AppliedRevision || restarted.Previous.Process.PID != started.Process.PID {
+			t.Fatalf("cycle %d: restart did not recover the forwarding instance: %+v, %v", cycle, restarted, err)
 		}
-		body, readErr := io.ReadAll(io.LimitReader(response.Body, 4097))
-		closeErr := response.Body.Close()
-		if readErr != nil || closeErr != nil || response.StatusCode != http.StatusOK || !bytes.Equal(body, payload) || received.Load() != int64(cycle+1) {
-			t.Fatalf("cycle %d: proxy payload/outcome mismatch: status %d, read %v, close %v", cycle, response.StatusCode, readErr, closeErr)
-		}
+		assertNativeShutdown(t, restarted.StopFailure)
+		assertInstanceReleased(t, restarted.Previous)
+		transport.CloseIdleConnections()
+		assertForwarded(int64((cycle + 1) * 2))
 		stopped, err := service.Stop(t.Context())
 		assertNativeShutdown(t, err)
 		assertInstanceReleased(t, stopped)
@@ -71,12 +83,12 @@ func TestInstanceProxiesLocalTrafficAcrossLifecycleCycles(t *testing.T) {
 			t.Fatal("stop erased the successfully executed revision")
 		}
 		transport.CloseIdleConnections()
-		response, err = client.Post(target.URL, "application/octet-stream", bytes.NewReader(payload))
+		response, err := client.Post(target.URL, "application/octet-stream", bytes.NewReader(payload))
 		if err == nil {
 			response.Body.Close()
 			t.Fatal("request still reached its target after the owned proxy stopped")
 		}
-		if received.Load() != int64(cycle+1) {
+		if received.Load() != int64((cycle+1)*2) {
 			t.Fatal("stopped-proxy check bypassed the owned engine")
 		}
 		if entries, err := os.ReadDir(runtimeRoot); err != nil || len(entries) != 0 {
