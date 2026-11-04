@@ -12,7 +12,7 @@ import (
 
 func configurationRevision(config []byte) instance.Revision {
 	digest := sha256.New()
-	digest.Write([]byte("papilio/xray/api-overlay/v1\x00"))
+	digest.Write([]byte("papilio/xray/api-overlay/v2\x00"))
 	digest.Write(config)
 	return instance.Revision(hex.EncodeToString(digest.Sum(nil)))
 }
@@ -48,6 +48,16 @@ func prepareAPIOverlay(config []byte, socket string) ([]byte, error) {
 	}
 	if !hasStats {
 		api.Services = append(api.Services, "StatsService")
+	}
+	hasHandler := false
+	for _, service := range api.Services {
+		if strings.EqualFold(service, "HandlerService") {
+			hasHandler = true
+			break
+		}
+	}
+	if !hasHandler {
+		api.Services = append(api.Services, "HandlerService")
 	}
 	return json.Marshal(struct {
 		API *apiConfiguration `json:"api"`

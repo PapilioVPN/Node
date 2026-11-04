@@ -92,7 +92,10 @@ not part of this configuration digest.
 Each `Start` creates a fresh 0700 directory with a 0600 API overlay and private
 filesystem Unix socket. The original configuration stays unchanged on stdin.
 The overlay preserves the native API tag and service order, adds `StatsService`
-if absent and replaces the listener with the owned socket. An absent/null API
+and `HandlerService` if absent and replaces the listener with the owned socket.
+The preparation-policy identifier is now `papilio/xray/api-overlay/v2`; captured
+revisions therefore change from the earlier stats-only policy even for identical
+original bytes. An absent/null API
 gets the tag `papilio-api`; an existing empty tag remains invalid. No TCP
 management listener is introduced. Native check and run consume the same two
 configuration sources. Only strict JSON input is accepted for the projection.
@@ -108,6 +111,11 @@ The same delay bounds inherited I/O pipes. Cancelling a stop caller only ends it
 wait; shutdown continues under the session owner. `Wait` joins actual exit, client
 closure and owned-directory removal. Repeated stops join that same completion.
 The session must be stopped or its lifetime cancelled, then waited for.
+
+[Live user observations](../users.md) use this same session/client through the
+instance's execution access scope. Exact-user, count and bounded collection reads
+return metadata only; native account writes and full protocol coverage are not
+established by these observations.
 
 An abnormal exit, forced kill or cleanup failure remains an inspectable
 `ProcessError`; its bounded sensitive diagnostics are excluded from default error

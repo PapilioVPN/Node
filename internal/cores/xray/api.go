@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 
+	proxyman "github.com/xtls/xray-core/app/proxyman/command"
 	"github.com/xtls/xray-core/app/stats/command"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -12,6 +13,7 @@ import (
 type nativeAPI struct {
 	connection *grpc.ClientConn
 	stats      command.StatsServiceClient
+	handlers   proxyman.HandlerServiceClient
 }
 
 func newNativeAPI(socket string) (*nativeAPI, error) {
@@ -23,7 +25,7 @@ func newNativeAPI(socket string) (*nativeAPI, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &nativeAPI{connection: connection, stats: command.NewStatsServiceClient(connection)}, nil
+	return &nativeAPI{connection: connection, stats: command.NewStatsServiceClient(connection), handlers: proxyman.NewHandlerServiceClient(connection)}, nil
 }
 
 func (a *nativeAPI) probe(ctx context.Context) error {

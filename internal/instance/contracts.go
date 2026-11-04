@@ -32,6 +32,10 @@ var (
 	ErrCleanupIncomplete = errors.New("engine cleanup incomplete")
 	// ErrRevisionConflict rejects a replacement based on different desired input.
 	ErrRevisionConflict = errors.New("instance desired revision has changed")
+	// ErrExecutionConflict rejects a target from a different execution generation.
+	ErrExecutionConflict = errors.New("instance execution has changed")
+	// ErrNotReady rejects native access without a recorded ready execution.
+	ErrNotReady = errors.New("instance is not ready")
 )
 
 // Exit records confirmed process termination. Code is -1 for a signal exit.
@@ -60,6 +64,8 @@ type ProcessObservation struct {
 // Snapshot reports the current operation and observed execution facts.
 // AppliedRevision and ReadyAt are historical; ObservedAt is not API freshness.
 type Snapshot struct {
+	// Generation is local to this Service and changes for every startup attempt.
+	Generation      uint64
 	ID              string
 	Engine          string
 	Phase           Phase

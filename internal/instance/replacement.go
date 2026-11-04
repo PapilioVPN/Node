@@ -46,7 +46,7 @@ func (s *Service) reserveReplacementLocked(ctx context.Context, status Snapshot)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if s.replacing != nil || s.starting != nil || s.stopping != nil || s.probing != nil {
+	if s.access != nil || s.replacing != nil || s.starting != nil || s.stopping != nil || s.probing != nil {
 		return nil, ErrBusy
 	}
 	operationCtx, cancel := context.WithCancel(ctx)

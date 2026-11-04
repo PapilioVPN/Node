@@ -92,6 +92,22 @@ owner neither parses engine input nor constructs its preparation or validation.
 Configuration replacement can therefore retain a new desired revision after
 failed startup while historical `AppliedRevision` remains the last admitted run.
 
+### Execution access
+
+`Snapshot.Generation` identifies startup attempts within one Service lifetime.
+`Acquire(ctx, generation)` pins the recorded ready session for a native capability
+operation. It rejects stale generations and conflicting access/lifecycle work
+before native I/O. The scope's `Context` includes Stop interruption; `Session` is
+borrowed and must not be stopped or retained by the capability adapter. Its owner
+joins work and calls `Close`, which is safe repeatedly or concurrently.
+
+Stop cancels access and joins its closure as well as native cleanup. A cancelled
+Stop waiter cannot abandon that join or permit a new execution early. Queries
+release their scope without stopping a healthy execution. This access primitive
+does not add user, routing or generated RPC methods to lifecycle `ISession`; the
+[user capability](users.md) supplies its own focused query contracts. Generation
+is a consistency fence, not authentication or persistent process identity.
+
 ## State meaning
 
 | Phase | Meaning |

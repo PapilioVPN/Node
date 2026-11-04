@@ -14,12 +14,12 @@ func TestAPIOverlayPreservesNativeServicesAndTag(t *testing.T) {
 		tag      string
 		services []string
 	}{
-		{"absent-api", `{"outbounds":[{"protocol":"freedom"}]}`, "papilio-api", []string{"StatsService"}},
-		{"null-api", `{"api":null}`, "papilio-api", []string{"StatsService"}},
+		{"absent-api", `{"outbounds":[{"protocol":"freedom"}]}`, "papilio-api", []string{"StatsService", "HandlerService"}},
+		{"null-api", `{"api":null}`, "papilio-api", []string{"StatsService", "HandlerService"}},
 		{"existing-services", `{"api":{"tag":"custom","listen":"127.0.0.1:1234","services":["HandlerService","LoggerService"]}}`, "custom", []string{"HandlerService", "LoggerService", "StatsService"}},
 		{"native-case-matching", `{"API":{"TAG":"custom","SERVICES":["statsservice","HandlerService"]}}`, "custom", []string{"statsservice", "HandlerService"}},
 		{"native-duplicate-object-merge", `{"api":{"tag":"custom"},"api":{"services":["HandlerService"]}}`, "custom", []string{"HandlerService", "StatsService"}},
-		{"empty-tag-remains-invalid", `{"api":{"tag":""}}`, "", []string{"StatsService"}},
+		{"empty-tag-remains-invalid", `{"api":{"tag":""}}`, "", []string{"StatsService", "HandlerService"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			input := []byte(test.config)

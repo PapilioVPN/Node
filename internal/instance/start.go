@@ -23,7 +23,7 @@ func (s *Service) start(ctx context.Context, owner *replacementAttempt) (Snapsho
 		s.mu.Unlock()
 		return status, err
 	}
-	if s.replacing != owner || s.probing != nil {
+	if s.replacing != owner || s.probing != nil || s.access != nil {
 		s.mu.Unlock()
 		return status, ErrBusy
 	}

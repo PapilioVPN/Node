@@ -77,18 +77,25 @@ func (s *Service) stop(ctx context.Context, owner *replacementAttempt) (Snapshot
 	s.stopping = operation
 	session := s.session
 	probe := s.probing
+	access := s.access
 	s.mu.Unlock()
-	go s.finishStop(session, probe, operation)
+	go s.finishStop(session, probe, access, operation)
 	return s.waitStop(ctx, operation)
 }
 
-func (s *Service) finishStop(session ISession, probe *probeAttempt, operation *stopOperation) {
+func (s *Service) finishStop(session ISession, probe *probeAttempt, access *Access, operation *stopOperation) {
 	if probe != nil {
 		probe.cancel()
+	}
+	if access != nil {
+		access.cancel()
 	}
 	err := session.Stop(context.Background())
 	if probe != nil {
 		<-probe.done
+	}
+	if access != nil {
+		<-access.done
 	}
 	observation := session.Observe()
 	s.mu.Lock()

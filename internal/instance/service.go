@@ -25,6 +25,7 @@ type Service struct {
 	probing    *probeAttempt
 	stopping   *stopOperation
 	replacing  *replacementAttempt
+	access     *Access
 }
 
 type startAttempt struct {
@@ -64,7 +65,7 @@ func (s *Service) Status() Snapshot {
 }
 
 func (s *Service) snapshotLocked() Snapshot {
-	status := Snapshot{ID: s.id, Engine: s.engine, Phase: s.phase,
+	status := Snapshot{Generation: s.generation, ID: s.id, Engine: s.engine, Phase: s.phase,
 		DesiredRevision: s.revision, AppliedRevision: s.applied,
 		ObservedAt: time.Now().UTC(), LastFailure: s.failure}
 	if s.session != nil {

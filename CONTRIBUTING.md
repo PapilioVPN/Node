@@ -140,6 +140,23 @@ initial startup and actual forwarding throughput. Healthy unchanged application
 executes no validation or startup subprocess; changed input is validated before
 old cleanup and rechecked by native startup.
 
+## User observation checks
+
+The full native suite reads actual VMess/VLESS/Trojan account metadata, verifies
+empty/missing/unsupported inbound failures, real response-byte limits and stale
+execution rejection after restart. Controlled tests assert focused RPC counts
+and that Stop cancels and joins active query access. See [user contracts](docs/users.md).
+
+```bash
+PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -run '^$' -bench '^BenchmarkUsersNativeQueries$' -benchtime=100x -benchmem -count=3 ./tests/integration
+```
+
+This measures the actual service/access/native RPC path on a ready Xray with two
+VMess accounts. Single-user and count queries use one RPC each; a complete bounded
+list uses count plus one native collection response, without per-user reads.
+Measurements exclude initial startup and forwarding throughput; record Go/engine
+versions, host and concurrent load before comparing results.
+
 ## Reporting a problem
 
 Include `node version --json`, the command or operation, expected/actual results
@@ -159,6 +176,7 @@ internal/instance/        Engine-independent lifecycle policy and observations
 internal/terminal/theme/  Shared terminal styles, with no environment or I/O
 internal/tui/             Interactive session, navigation and views
 internal/tui/pages/       Pure information and command-reference content
+internal/users/           Execution-scoped live user metadata queries
 tests/integration/        Real cross-package and OS integration tests
 ```
 
@@ -201,3 +219,8 @@ configuration application. Configuration declarations/read admission stay in
 `service.go`; `validate.go` and `apply.go` own their respective workflows.
 Within Xray, `revision_linux.go` owns fresh candidate capture, original-source
 reads and native effective-input validation/preparation shared with startup.
+`instance/access.go` owns cancellable access to one ready execution; Stop joins
+its release. `users/service.go` owns query contracts, input/admission bounds and
+composition; `queries.go` owns focused reads. `xray/users_linux.go` owns generated
+native query construction, byte/time bounds, metadata mapping and native errors.
+No user/protocol methods were added to lifecycle `ISession`.
