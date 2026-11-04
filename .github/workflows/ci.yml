@@ -97,7 +97,7 @@ jobs:
           cache: false
 
       - name: Install pinned vulnerability scanner
-        run: GOBIN="$RUNNER_TEMP/bin" go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+        run: GOBIN="$RUNNER_TEMP/bin" go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
 
       - name: Check reachable vulnerabilities
         run: '"$RUNNER_TEMP/bin/govulncheck" ./...'
