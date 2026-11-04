@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/colorprofile"
 
 	"github.com/papilio-platform/Node/internal/buildinfo"
+	"github.com/papilio-platform/Node/internal/terminal/theme"
 )
 
 // Run executes a CLI command and returns its process exit code: 0 for success,
@@ -29,7 +30,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		fmt.Fprintln(stderr, "color must be auto, always or never")
 		return 2
 	}
-	styles := newPalette(colorEnabled(*color, stdout))
+	styles := theme.New(colorEnabled(*color, stdout), false)
 	humanOutput := &colorprofile.Writer{Forward: stdout, Profile: outputProfile(*color, stdout)}
 	humanError := &colorprofile.Writer{Forward: stderr, Profile: outputProfile(*color, stderr)}
 	args = flags.Args()
@@ -37,7 +38,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		args = []string{"help"}
 	}
 	if len(args) == 0 {
-		fmt.Fprint(humanError, renderHelp(newPalette(colorEnabled(*color, stderr))))
+		fmt.Fprint(humanError, renderHelp(theme.New(colorEnabled(*color, stderr), false)))
 		return 2
 	}
 
@@ -56,7 +57,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	case "tui":
 		return runTUI(ctx, args[1:], stdin, stdout, stderr, info, *color)
 	default:
-		fmt.Fprintf(humanError, "unknown command %q\n\n%s", args[0], renderHelp(newPalette(colorEnabled(*color, stderr))))
+		fmt.Fprintf(humanError, "unknown command %q\n\n%s", args[0], renderHelp(theme.New(colorEnabled(*color, stderr), false)))
 		return 2
 	}
 	return 0

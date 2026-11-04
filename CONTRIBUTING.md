@@ -43,11 +43,12 @@ Distinguish a confirmed result from an untested assumption.
 ## Code organization
 
 ```text
-cmd/node/            Process entrypoint and composition
-internal/buildinfo/ Binary metadata, independent of presentation
-internal/cli/       Command parsing, help, JSON and exit codes
-internal/tui/       Interactive session, navigation and views
-tests/integration/  Real cross-package and OS integration tests
+cmd/node/                 Process entrypoint and composition
+internal/buildinfo/       Binary metadata, independent of presentation
+internal/cli/             Command parsing, help, JSON and exit codes
+internal/terminal/theme/   Shared terminal styles, with no environment or I/O
+internal/tui/             Interactive session, navigation and views
+tests/integration/        Real cross-package and OS integration tests
 ```
 
 Keep ordinary `*_test.go` files beside the package they verify, as in the
@@ -57,3 +58,6 @@ event models. Test files are excluded from ordinary builds. Add responsibility
 packages when actual behavior needs them, and keep dependencies acyclic.
 The CLI launches the TUI with explicit content/presentation options; the TUI does
 not parse CLI arguments or decide process exit codes.
+Both adapters use the terminal theme; they own color policy and background
+detection respectively. The theme only constructs Lip Gloss styles from those
+explicit inputs and does not import either adapter.

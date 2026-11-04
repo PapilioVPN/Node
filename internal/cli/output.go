@@ -5,28 +5,11 @@ import (
 	"io"
 	"os"
 
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/term"
+
+	"github.com/papilio-platform/Node/internal/terminal/theme"
 )
-
-// palette is local to terminal presentation. Plain mode removes text attributes
-// as well as colors, while keeping spacing and textual selection markers.
-type palette struct {
-	brand, accent, muted lipgloss.Style
-}
-
-func newPalette(color bool) palette {
-	p := palette{}
-	if color {
-		cyan, purple := "#0E7490", "#7C3AED"
-		p.brand = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(cyan))
-		p.accent = lipgloss.NewStyle().Foreground(lipgloss.Color(purple))
-		// Default terminal foreground keeps secondary text readable on both themes.
-		p.muted = lipgloss.NewStyle().Italic(true)
-	}
-	return p
-}
 
 func isTerminal(stream any) bool {
 	file, ok := stream.(*os.File)
@@ -53,7 +36,7 @@ func outputProfile(mode string, output io.Writer) colorprofile.Profile {
 	return profile
 }
 
-func renderHelp(p palette) string {
+func renderHelp(p theme.Styles) string {
 	return fmt.Sprintf(`%s  %s
 The PapilioVPN Node command line.
 
@@ -70,7 +53,7 @@ The PapilioVPN Node command line.
   -h, --help        Show help. Use <command> --help for command options.
 
 %s
-`, p.brand.Render("PapilioVPN Node"), p.accent.Render("[ DEVELOPMENT ]"),
-		p.brand.Render("Usage:"), p.brand.Render("Commands:"), p.brand.Render("Options:"),
-		p.muted.Render("Engine management is not available in this development build."))
+`, p.Brand.Render("PapilioVPN Node"), p.Accent.Render("[ DEVELOPMENT ]"),
+		p.Brand.Render("Usage:"), p.Brand.Render("Commands:"), p.Brand.Render("Options:"),
+		p.Muted.Render("Engine management is not available in this development build."))
 }

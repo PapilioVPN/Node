@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/colorprofile"
 
 	"github.com/papilio-platform/Node/internal/buildinfo"
+	"github.com/papilio-platform/Node/internal/terminal/theme"
 	"github.com/papilio-platform/Node/internal/tui"
 )
 
@@ -52,10 +53,10 @@ func runVersion(args []string, stdout, stderr io.Writer, info buildinfo.Info, co
 		}
 		err = json.NewEncoder(stdout).Encode(output)
 	} else {
-		styles := newPalette(colorEnabled(color, stdout))
+		styles := theme.New(colorEnabled(color, stdout), false)
 		output := &colorprofile.Writer{Forward: stdout, Profile: outputProfile(color, stdout)}
 		_, err = fmt.Fprintf(output, "%s %s (%s %s/%s)\n",
-			styles.brand.Render("PapilioVPN Node"), styles.accent.Render(info.Version), info.GoVersion, info.OS, info.Arch)
+			styles.Brand.Render("PapilioVPN Node"), styles.Accent.Render(info.Version), info.GoVersion, info.OS, info.Arch)
 	}
 	if err != nil {
 		fmt.Fprintf(stderr, "write version: %v\n", err)
@@ -84,7 +85,7 @@ func runTUI(ctx context.Context, args []string, stdin io.Reader, stdout, stderr 
 		fmt.Fprintln(stderr, "tui requires terminal input/output and TERM other than dumb; use node help or node version --json")
 		return 2
 	}
-	options := tui.Options{BuildInfo: info, CommandHelp: renderHelp(newPalette(false)), ColorProfile: outputProfile(color, stdout)}
+	options := tui.Options{BuildInfo: info, CommandHelp: renderHelp(theme.New(false, false)), ColorProfile: outputProfile(color, stdout)}
 	if err := tui.Run(ctx, stdin, stdout, options); err != nil {
 		fmt.Fprintf(stderr, "terminal console: %v\n", err)
 		return 1
