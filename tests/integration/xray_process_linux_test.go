@@ -16,7 +16,7 @@ import (
 func nativeLauncher(t testing.TB, config []byte) (*xray.Launcher, context.CancelFunc, string) {
 	t.Helper()
 	executable := pinnedXray(t)
-	root, err := os.MkdirTemp("", "papilio-test-")
+	root, err := os.MkdirTemp("", "papilio-%#?-")
 	if err != nil {
 		t.Fatal(err)
 	}

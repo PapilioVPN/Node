@@ -2,6 +2,7 @@ package xray
 
 import (
 	"context"
+	"net/url"
 
 	"github.com/xtls/xray-core/app/stats/command"
 	"google.golang.org/grpc"
@@ -14,7 +15,8 @@ type nativeAPI struct {
 }
 
 func newNativeAPI(socket string) (*nativeAPI, error) {
-	connection, err := grpc.NewClient("unix://"+socket,
+	target := (&url.URL{Scheme: "unix", Path: socket}).String()
+	connection, err := grpc.NewClient(target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDisableRetry(),
 	)
