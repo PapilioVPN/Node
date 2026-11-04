@@ -1,15 +1,5 @@
 # Node
 
-The node service for PapilioVPN.
+The service that runs on managed nodes and connects them to the PapilioVPN platform.
 
-## Scope
-
-Runs on managed nodes and communicates with Core-API.
-
-## Technology
-
-Go
-
-## Status
-
-Initial project placeholder. Implementation and setup instructions will be added as the project develops.
+**Status: Under development.**
