@@ -34,6 +34,27 @@ resize, cancellation, signals and restoration. For terminal changes, also inspec
 the real `node tui` in light/dark themes, a small window and colorless mode.
 Keep JSON output free of all terminal styling and control codes.
 
+## Native Xray tests
+
+CI acquires Xray v26.10.31 for the runner's architecture and checks the official
+release archive SHA256 before extracting the executable. To run the same tests
+on Linux amd64 or arm64, choose an unused destination:
+
+```bash
+xray_test_root=$(mktemp -d)
+bash scripts/ci/install-xray.sh "$xray_test_root/engine"
+PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -race -count=1 ./...
+```
+
+The downloader refuses to replace an existing destination. Remove your temporary
+test directory when finished. Alternatively, set `PAPILIO_TEST_XRAY` to an absolute
+path to an already verified copy of that exact engine version. Without this
+variable, local native-engine tests skip; controlled process tests still run.
+CI always supplies it, and a missing or incorrect engine fails verification.
+Tests use isolated temporary files and private socket paths, with no host routing
+changes or customer configuration. Native validation runs under your privileges
+and is not a sandbox. Use only the controlled test fixtures.
+
 ## Reporting a problem
 
 Include `node version --json`, the command or operation, expected/actual results
@@ -46,6 +67,7 @@ Distinguish a confirmed result from an untested assumption.
 cmd/node/                 Process entrypoint and composition
 internal/buildinfo/       Binary metadata, independent of presentation
 internal/cli/             Command parsing, help, JSON and exit codes
+internal/cores/xray/      Native configuration checking and bounded diagnostics
 internal/terminal/theme/  Shared terminal styles, with no environment or I/O
 internal/tui/             Interactive session, navigation and views
 internal/tui/pages/       Pure information and command-reference content
@@ -68,3 +90,5 @@ explicit inputs and does not import either adapter.
 The TUI model selects pages and owns viewport state; `view.go` lays out the frame
 and `tui.go` runs the Bubble Tea session. Page rendering consumes explicit build
 metadata, command text and styles without importing event, process or CLI code.
+Within the Xray adapter, `check.go` owns native validation and its errors;
+`diagnostics.go` owns bounded output retention. Neither imports presentation code.

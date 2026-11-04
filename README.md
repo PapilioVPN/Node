@@ -31,6 +31,8 @@
 
 This revision provides the executable foundation and command-line interface.
 Engine management and the network control API are not available yet.
+The internal Xray adapter now provides native configuration validation; it is
+not exposed as a CLI command or network endpoint.
 
 | Available now | Behavior |
 | --- | --- |
@@ -38,7 +40,8 @@ Engine management and the network control API are not available yet.
 | Terminal console | Branded, keyboard-driven overview, build details and command reference with scrolling and responsive layout. |
 | Version inspection | Human-readable version, Go version and target platform. |
 | Structured build metadata | JSON includes revision and working-tree state when embedded by Go. |
-| Linux verification | CI builds and tests the CLI natively on amd64 and arm64. |
+| Native configuration checks | Bounded Xray validation with cancellation and private diagnostics. See [tested scope and limits](docs/engines/xray.md). |
+| Linux verification | CI builds and tests natively on amd64 and arm64, including checksum-pinned Xray configuration checks. |
 
 ## Quick start
 
@@ -128,6 +131,8 @@ a pinned `govulncheck`. Compiler and scanner versions are declared in the
 [CI workflow](.github/workflows/ci.yml). Race tests require a supported C toolchain.
 Linux tests exercise real pseudo-terminals for navigation, resize, color policy,
 cancellation, signals and terminal restoration.
+Real engine tests require the pinned Xray executable; see the
+[engine verification instructions](CONTRIBUTING.md#native-xray-tests).
 
 ## Contributing
 

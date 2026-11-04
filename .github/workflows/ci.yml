@@ -54,7 +54,12 @@ jobs:
       - name: Vet source
         run: go vet ./...
 
+      - name: Obtain checksum-pinned native Xray
+        run: bash scripts/ci/install-xray.sh "$RUNNER_TEMP/xray"
+
       - name: Run tests with the race detector
+        env:
+          PAPILIO_TEST_XRAY: ${{ runner.temp }}/xray/xray
         run: go test -race -count=1 ./...
 
       - name: Build native executable
