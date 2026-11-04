@@ -3,12 +3,13 @@ package tui
 import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/papilio-platform/Node/internal/buildinfo"
+	"github.com/papilio-platform/Node/internal/terminal/theme"
+	"github.com/papilio-platform/Node/internal/tui/pages"
 )
 
-// console owns presentation only. It does not start engines, poll the host or
-// invent runtime observations; future management views consume application APIs.
 type console struct {
 	info          buildinfo.Info
 	commands      string
@@ -73,4 +74,20 @@ func (m console) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, command
+}
+
+func (m *console) refresh() {
+	styles := theme.New(m.color, m.dark)
+	var content string
+	switch {
+	case m.help:
+		content = pages.Shortcuts(styles)
+	case m.page == 0:
+		content = pages.Overview(styles)
+	case m.page == 1:
+		content = pages.Build(m.info, styles)
+	default:
+		content = pages.Commands(m.commands, styles)
+	}
+	m.viewport.SetContent(ansi.Wrap(content, m.viewport.Width(), ""))
 }

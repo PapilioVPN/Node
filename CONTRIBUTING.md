@@ -46,8 +46,9 @@ Distinguish a confirmed result from an untested assumption.
 cmd/node/                 Process entrypoint and composition
 internal/buildinfo/       Binary metadata, independent of presentation
 internal/cli/             Command parsing, help, JSON and exit codes
-internal/terminal/theme/   Shared terminal styles, with no environment or I/O
+internal/terminal/theme/  Shared terminal styles, with no environment or I/O
 internal/tui/             Interactive session, navigation and views
+internal/tui/pages/       Pure information and command-reference content
 tests/integration/        Real cross-package and OS integration tests
 ```
 
@@ -64,3 +65,6 @@ Within the CLI, `cli.go` owns root dispatch, `version.go` owns version output,
 Both adapters use the terminal theme; they own color policy and background
 detection respectively. The theme only constructs Lip Gloss styles from those
 explicit inputs and does not import either adapter.
+The TUI model selects pages and owns viewport state; `view.go` lays out the frame
+and `tui.go` runs the Bubble Tea session. Page rendering consumes explicit build
+metadata, command text and styles without importing event, process or CLI code.

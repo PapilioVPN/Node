@@ -6,56 +6,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/papilio-platform/Node/internal/terminal/theme"
 )
-
-func (m *console) refresh() {
-	p := theme.New(m.color, m.dark)
-	var content string
-	switch {
-	case m.help:
-		content = p.Brand.Render("KEYBOARD SHORTCUTS") + `
-
-Tab / Shift+Tab    Next / previous page
-Left / Right      Previous / next page (h / l)
-1 / 2 / 3         Overview / build / commands
-Up / Down         Scroll one line (k / j)
-PgUp / PgDown     Scroll one page
-Home / End        Start / end of page (g / G)
-?                 Toggle this help
-Esc               Close help, otherwise quit
-q / Ctrl+C        Quit and restore the terminal
-
-Resize the terminal at any time. Use node --color=never tui for a plain console.
-This console inspects the current binary; it does not manage a running service.`
-	case m.page == 0:
-		content = p.Brand.Render("YOUR NODE, IN FOCUS") + "\n\n" +
-			"Welcome to the PapilioVPN Node console.\n\n" +
-			p.Accent.Render("AVAILABLE IN THIS BUILD") + "\n" +
-			"  Build     Inspect version, revision and target platform.\n" +
-			"  Commands  Find real commands and script-friendly output.\n\n" +
-			p.Accent.Render("RUNTIME AVAILABILITY") + "\n" +
-			"Engine management and the network control API are not available in this development build.\n" +
-			"No engine or service is queried by this console.\n\n" +
-			p.Muted.Render("Press 2 for build details, 3 for commands or ? for keyboard help.")
-	case m.page == 1:
-		revision := m.info.Revision
-		if revision == "" {
-			revision = "not embedded"
-		}
-		content = fmt.Sprintf("%s\n\nVersion      %s\nGo           %s\nPlatform     %s/%s\nRevision     %s\nModified     %t\n\n%s\n%s",
-			p.Brand.Render("BINARY IDENTITY"), m.info.Version, m.info.GoVersion, m.info.OS, m.info.Arch, revision, m.info.Modified,
-			p.Accent.Render("ABOUT THIS METADATA"),
-			"Values describe this binary at build time. Modified records source changes at build time. An absent revision is not an engine health result.\n\nFor automation, run: node version --json")
-	default:
-		content = m.commands + "\n" + p.Accent.Render("SCRIPTING") + "\n" +
-			"node version --json\n\nJSON never contains colors or terminal control codes. Global options precede the command.\n\n" +
-			"node --color=always help\nnode --color=never tui\n\nNO_COLOR with any nonempty value disables automatic styling. The explicit --color option takes precedence."
-	}
-	m.viewport.SetContent(ansi.Wrap(content, m.viewport.Width(), ""))
-}
 
 func (m console) View() tea.View {
 	p := theme.New(m.color, m.dark)
