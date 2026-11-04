@@ -104,6 +104,24 @@ Controlled `testing/synctest` cases also verify conflicting operations, deadline
 late sessions and incomplete cleanup; race tests mix bounded concurrent lifecycle
 calls and assert at most one owned execution.
 
+## Engine log checks
+
+The full suite includes bounded retention, replay/live gaps, reader cleanup,
+framing and sensitive-output checks. With `PAPILIO_TEST_XRAY` set as above, it also
+verifies real startup/access logs, forwarding across restart, file/disabled log
+settings and post-exit replay. See [log contracts](docs/engine-logs.md).
+
+```bash
+go test ./internal/cores/xray -run '^$' -fuzz '^FuzzRuntimeLogFraming$' -fuzztime=5s -parallel=2
+go test ./internal/cores/xray -run '^$' -bench '^BenchmarkRuntimeLogOutput$' -benchmem -count=3
+```
+
+This benchmark feeds 128 native-format lines per write through the production
+runtime-output adapter, retaining 256 records at a 1024-byte line limit and a
+4096-byte private diagnostic tail. Subtests use zero/two draining pull readers.
+Record Go version, CPU and workload when comparing results. The measurement
+excludes actual engine/pipe/network execution; it is not data-plane throughput.
+
 ## Reporting a problem
 
 Include `node version --json`, the command or operation, expected/actual results
@@ -117,6 +135,7 @@ cmd/node/                 Process entrypoint and composition
 internal/buildinfo/       Binary metadata, independent of presentation
 internal/cli/             Command parsing, help, JSON and exit codes
 internal/cores/xray/      Native configuration, API readiness and owned processes
+internal/enginelog/       Bounded engine-output retention and pull subscriptions
 internal/instance/        Engine-independent lifecycle policy and observations
 internal/terminal/theme/  Shared terminal styles, with no environment or I/O
 internal/tui/             Interactive session, navigation and views
@@ -144,6 +163,10 @@ Within the Xray adapter, `configuration.go` owns the pure management projection,
 `check.go` native validation, `api.go` the native client, `launch_linux.go` owned
 startup and `process_linux.go` the running session/Wait/shutdown. Bounded output
 retention stays in `diagnostics.go`. None imports presentation code.
+`logs.go` frames runtime console output and maps native source/severity into the
+engine-independent log buffer. `enginelog/buffer.go` owns retention/admission;
+`subscription.go` owns cancellable cursor reads. Neither performs native I/O or
+launches subscriber goroutines. The composition owns buffer lifetime across runs.
 Native adapters depend on the instance owner's typed contracts. The instance
 service imports no engine implementation, process API or generated messages;
 `service.go` owns state/snapshots, while `start.go` and `stop.go` own their respective

@@ -11,9 +11,10 @@ import (
 	"time"
 
 	"github.com/papilio-platform/Node/internal/cores/xray"
+	"github.com/papilio-platform/Node/internal/enginelog"
 )
 
-func nativeLauncher(t testing.TB, config []byte) (*xray.Launcher, context.CancelFunc, string) {
+func nativeLauncher(t testing.TB, config []byte, logs ...*enginelog.Buffer) (*xray.Launcher, context.CancelFunc, string) {
 	t.Helper()
 	executable := pinnedXray(t)
 	root, err := os.MkdirTemp("", "papilio-%#?-")
@@ -23,14 +24,18 @@ func nativeLauncher(t testing.TB, config []byte) (*xray.Launcher, context.Cancel
 	t.Cleanup(func() { os.RemoveAll(root) })
 	lifetime, shutdown := context.WithCancel(context.Background())
 	t.Cleanup(shutdown)
-	launcher, err := xray.NewLauncher(lifetime, xray.LaunchOptions{
+	options := xray.LaunchOptions{
 		Check: xray.CheckerOptions{
 			Executable: executable, WorkingDir: t.TempDir(),
 			MaxConfigBytes: 1 << 20, MaxDiagnosticBytes: 4096,
 			Timeout: 5 * time.Second, WaitDelay: time.Second,
 		},
 		RuntimeDir: root, ReadyTimeout: 5 * time.Second, StopTimeout: time.Second,
-	}, config)
+	}
+	if len(logs) > 0 {
+		options.Logs = logs[0]
+	}
+	launcher, err := xray.NewLauncher(lifetime, options, config)
 	if err != nil {
 		t.Fatal(err)
 	}

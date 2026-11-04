@@ -23,6 +23,7 @@ type Session struct {
 	api          *nativeAPI
 	directory    string
 	output       *diagnosticTail
+	runtimeLogs  *runtimeOutput
 	context      context.Context
 	cancel       context.CancelFunc
 	done         chan struct{}
@@ -95,6 +96,9 @@ func (s *Session) Wait(ctx context.Context) error {
 
 func (s *Session) reap() {
 	err := s.cmd.Wait()
+	if s.runtimeLogs != nil {
+		s.runtimeLogs.flush()
+	}
 	status := s.cmd.ProcessState.Sys().(syscall.WaitStatus)
 	exit := &instance.Exit{At: time.Now().UTC(), Code: s.cmd.ProcessState.ExitCode()}
 	if status.Signaled() {

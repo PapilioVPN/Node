@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/papilio-platform/Node/internal/enginelog"
 	"github.com/papilio-platform/Node/internal/instance"
 )
 
@@ -20,6 +21,9 @@ type LaunchOptions struct {
 	RuntimeDir   string
 	ReadyTimeout time.Duration
 	StopTimeout  time.Duration
+	// Logs explicitly opts into sensitive console capture. The binding's
+	// composition owns this buffer across runs and closes it after joining them.
+	Logs *enginelog.Buffer
 }
 
 // Launcher binds one captured configuration to an explicit process lifetime.
@@ -129,21 +133,39 @@ func (l *Launcher) Start(ctx context.Context) (session instance.ISession, err er
 	cmd.Stdin = bytes.NewReader(l.config)
 	output := &diagnosticTail{data: make([]byte, l.options.Check.MaxDiagnosticBytes)}
 	cmd.Stdout, cmd.Stderr = output, output
+	var runtimeLogs *runtimeOutput
+	if l.options.Logs != nil {
+		runtimeLogs = newRuntimeOutput(output, l.options.Logs)
+		cmd.Stdout, cmd.Stderr = runtimeLogs.stdout, runtimeLogs.stderr
+	}
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 	cmd.WaitDelay = l.options.StopTimeout
 	if err := ctx.Err(); err != nil {
 		stopProcess()
 		return nil, context.Cause(ctx)
 	}
-	if err := cmd.Start(); err != nil {
+	// Gate output copying until the actual child identity is available.
+	if runtimeLogs != nil {
+		runtimeLogs.mu.Lock()
+	}
+	startErr := cmd.Start()
+	startedAt := time.Now().UTC()
+	if runtimeLogs != nil {
+		if startErr == nil {
+			runtimeLogs.execution = enginelog.Execution{PID: cmd.Process.Pid, StartedAt: startedAt}
+		}
+		runtimeLogs.mu.Unlock()
+	}
+	if startErr != nil {
 		stopProcess()
-		return nil, fmt.Errorf("start Xray process: %w", err)
+		return nil, fmt.Errorf("start Xray process: %w", startErr)
 	}
 	run = &Session{cmd: cmd, api: api, directory: directory, output: output,
-		context: processCtx, cancel: stopProcess, done: make(chan struct{}),
+		runtimeLogs: runtimeLogs,
+		context:     processCtx, cancel: stopProcess, done: make(chan struct{}),
 		probeTimeout: l.options.ReadyTimeout,
 		observation: instance.ProcessObservation{PID: cmd.Process.Pid, Version: version,
-			VersionObservedAt: versionObservedAt, StartedAt: time.Now().UTC()}}
+			VersionObservedAt: versionObservedAt, StartedAt: startedAt}}
 	go run.reap()
 	readyCtx, cancelReady := context.WithTimeout(ctx, l.options.ReadyTimeout)
 	defer cancelReady()

@@ -45,6 +45,7 @@ configuration revisions, native version and confirmed process outcomes.
 | Native configuration checks | Bounded Xray validation with cancellation and private diagnostics. See [tested scope and limits](docs/engines/xray.md). |
 | Owned Xray processes | Native API readiness through a private Unix socket, bounded shutdown and owned-resource cleanup. Internal adapter only; see [lifecycle limits](docs/engines/xray.md#owned-process-contract). |
 | Instance lifecycle | Typed state/revisions, native version and exit/cleanup outcomes. Bounded start/stop/restart with explicit recovery; real-engine tests cover local forwarding, crash recovery and lifetime shutdown. Status reads perform no engine I/O; see [instance contracts](docs/instances.md). |
+| Engine console logs | Opt-in bounded replay/live reads with resumable cursors, explicit retention gaps and per-run identity. Xray console capture is verified across real traffic and restart; native file/disabled settings remain authoritative. See [log contracts](docs/engine-logs.md). |
 | Linux verification | CI builds and tests natively on amd64 and arm64, including checksum-pinned Xray validation and process tests. |
 
 ## Quick start

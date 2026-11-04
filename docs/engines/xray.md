@@ -11,6 +11,10 @@ endpoints are not provided yet; the fixture is not full protocol support evidenc
 The official native API client is pinned to the same source revision. Its module
 requires Go 1.27; Node builds use Go **1.27.3 or newer**.
 
+Opt-in [bounded console logs](../engine-logs.md) provide replay and live reads
+across native runs, preserving configured file/disabled logging. The composition
+owns one sensitive log buffer per binding; lifecycle contracts stay independent.
+
 ## Execution contract
 
 `internal/cores/xray.Checker` invokes the selected absolute executable directly:

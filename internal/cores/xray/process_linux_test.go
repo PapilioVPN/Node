@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/papilio-platform/Node/internal/cores/xray"
+	"github.com/papilio-platform/Node/internal/enginelog"
 )
 
 func launchOptions(t *testing.T) xray.LaunchOptions {
@@ -24,6 +25,30 @@ func launchOptions(t *testing.T) xray.LaunchOptions {
 	t.Cleanup(func() { os.RemoveAll(root) })
 	return xray.LaunchOptions{Check: checkerOptions(t), RuntimeDir: root,
 		ReadyTimeout: 500 * time.Millisecond, StopTimeout: 100 * time.Millisecond}
+}
+
+func TestRuntimeFailureFlushesSensitiveUnterminatedLog(t *testing.T) {
+	options := launchOptions(t)
+	logs, err := enginelog.New(enginelog.Limits{Records: 2, LineBytes: 64, Readers: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logs.Close()
+	options.Logs = logs
+	launcher, err := xray.NewLauncher(t.Context(), options, helperConfig(t, helperRequest{Mode: "exit-after-validation"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = launcher.Start(t.Context())
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) || exit.ExitCode() != 42 || strings.Contains(err.Error(), "private-exit-tail") {
+		t.Fatalf("runtime error privacy/cause lost: %v", err)
+	}
+	records, err := logs.Recent(2)
+	if err != nil || len(records) != 1 || !records[0].Truncated || len(records[0].Text) != 64 || records[0].Source != enginelog.Stderr || records[0].Execution.PID <= 0 {
+		t.Fatalf("bounded failed-start EOF output missing: %+v %v", records, err)
+	}
+	assertRuntimeEmpty(t, options.RuntimeDir)
 }
 
 func assertRuntimeEmpty(t *testing.T, path string) {
