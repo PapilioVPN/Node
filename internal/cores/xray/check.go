@@ -56,6 +56,10 @@ func NewChecker(options CheckerOptions) (*Checker, error) {
 // bounded diagnostic tail. Native validation is neither readiness nor a sandbox:
 // Xray may access resources referenced by config under the caller's privileges.
 func (c *Checker) Check(ctx context.Context, config []byte) error {
+	return c.check(ctx, config, "")
+}
+
+func (c *Checker) check(ctx context.Context, config []byte, overlay string) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("check Xray configuration: %w", err)
 	}
@@ -66,11 +70,11 @@ func (c *Checker) Check(ctx context.Context, config []byte) error {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, c.options.Executable, "run", "-test", "-format=json", "-c", "stdin:")
-	cmd.Dir = c.options.WorkingDir
-	cmd.Env = []string{}
-	if c.options.AssetsDir != "" {
-		cmd.Env = append(cmd.Env, "XRAY_LOCATION_ASSET="+c.options.AssetsDir)
+	if overlay != "" {
+		cmd.Args = append(cmd.Args, "-c", overlay)
 	}
+	cmd.Dir = c.options.WorkingDir
+	cmd.Env = nativeEnvironment(c.options.AssetsDir)
 	cmd.Stdin = bytes.NewReader(config)
 	output := diagnosticTail{data: make([]byte, c.options.MaxDiagnosticBytes)}
 	// os/exec serializes writes when stdout and stderr share the same writer.
@@ -98,3 +102,11 @@ func (e *CheckError) Error() string { return fmt.Sprintf("check Xray configurati
 
 // Unwrap preserves exit, launch and context errors for errors.Is/errors.As.
 func (e *CheckError) Unwrap() error { return e.cause }
+
+func nativeEnvironment(assetsDir string) []string {
+	environment := []string{}
+	if assetsDir != "" {
+		environment = append(environment, "XRAY_LOCATION_ASSET="+assetsDir)
+	}
+	return environment
+}

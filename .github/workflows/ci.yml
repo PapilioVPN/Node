@@ -62,6 +62,9 @@ jobs:
           PAPILIO_TEST_XRAY: ${{ runner.temp }}/xray/xray
         run: go test -race -count=1 ./...
 
+      - name: Fuzz native API configuration preparation
+        run: go test ./internal/cores/xray -run='^$' -fuzz='^FuzzAPIOverlay$' -fuzztime=5s -parallel=2
+
       - name: Build native executable
         run: go build -trimpath -o bin/node ./cmd/node
 

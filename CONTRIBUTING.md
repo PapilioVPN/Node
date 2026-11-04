@@ -6,7 +6,7 @@ focused changes. Describe the resulting behavior and how you verified it.
 
 ## Before submitting
 
-- Use Go 1.26 or newer and keep changes focused on a coherent responsibility.
+- Use Go 1.27.3 or newer and keep changes focused on a coherent responsibility.
 - Preserve typed contracts, cancellation, error meaning and resource ownership.
 - Add meaningful behavior tests for implemented capabilities. Identify whether
   verification uses controlled inputs or real isolated engine/OS integration.
@@ -55,6 +55,17 @@ Tests use isolated temporary files and private socket paths, with no host routin
 changes or customer configuration. Native validation runs under your privileges
 and is not a sandbox. Use only the controlled test fixtures.
 
+To measure the actual native check/start/API-ready/stop cycle:
+
+```bash
+PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -run '^$' -bench '^BenchmarkXrayLifecycle$' -benchtime=5x -count=1 ./tests/integration
+```
+
+Record compiler, engine version, host and workload with any results. Allocation
+figures describe Node/client allocations, not the external engine's memory.
+This benchmark does not measure traffic throughput or establish superiority
+over another Node implementation.
+
 ## Reporting a problem
 
 Include `node version --json`, the command or operation, expected/actual results
@@ -67,7 +78,7 @@ Distinguish a confirmed result from an untested assumption.
 cmd/node/                 Process entrypoint and composition
 internal/buildinfo/       Binary metadata, independent of presentation
 internal/cli/             Command parsing, help, JSON and exit codes
-internal/cores/xray/      Native configuration checking and bounded diagnostics
+internal/cores/xray/      Native configuration, API readiness and owned processes
 internal/terminal/theme/  Shared terminal styles, with no environment or I/O
 internal/tui/             Interactive session, navigation and views
 internal/tui/pages/       Pure information and command-reference content
@@ -90,5 +101,7 @@ explicit inputs and does not import either adapter.
 The TUI model selects pages and owns viewport state; `view.go` lays out the frame
 and `tui.go` runs the Bubble Tea session. Page rendering consumes explicit build
 metadata, command text and styles without importing event, process or CLI code.
-Within the Xray adapter, `check.go` owns native validation and its errors;
-`diagnostics.go` owns bounded output retention. Neither imports presentation code.
+Within the Xray adapter, `configuration.go` owns the pure management projection,
+`check.go` native validation, `api.go` the native client, `launch_linux.go` owned
+startup and `process_linux.go` the running session/Wait/shutdown. Bounded output
+retention stays in `diagnostics.go`. None imports presentation or application policy.

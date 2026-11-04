@@ -1,9 +1,13 @@
-# Xray configuration validation
+# Xray native integration
 
-The internal adapter validates one configuration with Xray **v26.10.31**
-(commit `a4a3dff`). Native CI runs the configuration contract on **Linux amd64
-and arm64**, using checksum-pinned official release archives. This does not
-establish lifecycle, traffic, user management or control API support.
+The internal adapter validates configuration and owns an Xray **v26.10.31**
+(commit `a4a3dff`) process. Native CI runs validation, API readiness and shutdown
+checks on **Linux amd64 and arm64**, using checksum-pinned official release
+archives. Traffic, user management, lifecycle application policy and control
+endpoints are not provided by this adapter slice.
+
+The official native API client is pinned to the same source revision. Its module
+requires Go 1.27; Node builds use Go **1.27.3 or newer**.
 
 ## Execution contract
 
@@ -47,3 +51,39 @@ Run the [native test instructions](../../CONTRIBUTING.md#native-xray-tests) to v
 acceptance, rejection, ambient-configuration isolation and absence of listeners.
 Controlled child-process tests separately cover limits, sensitive diagnostics,
 cancellation, reaping and concurrent calls.
+
+## Owned process contract
+
+`NewLauncher` captures a bounded copy of the supplied JSON without I/O. The caller
+provides the process lifetime context, native check options, an absolute runtime
+parent directory and positive readiness/shutdown deadlines. The parent and working
+directories remain caller-owned. Callers coordinate conflicting launches.
+
+Each `Start` creates a fresh 0700 directory with a 0600 API overlay and private
+filesystem Unix socket. The original configuration stays unchanged on stdin.
+The overlay preserves the native API tag and service order, adds `StatsService`
+if absent and replaces the listener with the owned socket. An absent/null API
+gets the tag `papilio-api`; an existing empty tag remains invalid. No TCP
+management listener is introduced. Native check and run consume the same two
+configuration sources. Only strict JSON input is accepted for the projection.
+
+One reusable official gRPC client calls `GetSysStats` over the private socket to
+establish API readiness. There is no PID/log-only readiness, per-probe subprocess,
+background statistics polling or application-level RPC retry. A failed or cancelled
+start joins owned cleanup before returning. After a successful start, its request
+context no longer controls the engine; the injected process lifetime does.
+
+`Stop` requests SIGTERM, with native `os/exec` escalation to Kill after `StopTimeout`.
+The same delay bounds inherited I/O pipes. Cancelling a stop caller only ends its
+wait; shutdown continues under the session owner. `Wait` joins actual exit, client
+closure and owned-directory removal. Repeated stops join that same completion.
+The session must be stopped or its lifetime cancelled, then waited for.
+
+An abnormal exit, forced kill or cleanup failure remains an inspectable
+`ProcessError`; its bounded sensitive diagnostics are excluded from default error
+text. API readiness does **not** guarantee that upstream has installed its signal
+handlers: the pinned Xray starts its API before GC and SIGTERM subscription.
+An early SIGTERM can therefore terminate it without graceful engine cleanup;
+Node reports that native exit and still reaps and removes its owned resources.
+It does not report the signal exit as graceful success or add a timing-based sleep.
+Application state/recovery policy must account for the actual exit outcome.

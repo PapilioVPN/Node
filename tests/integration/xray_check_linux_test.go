@@ -14,7 +14,8 @@ import (
 	"github.com/papilio-platform/Node/internal/cores/xray"
 )
 
-func TestXrayConfigurationChecks(t *testing.T) {
+func pinnedXray(t testing.TB) string {
+	t.Helper()
 	executable := os.Getenv("PAPILIO_TEST_XRAY")
 	if executable == "" {
 		t.Skip("set PAPILIO_TEST_XRAY to the pinned native Xray executable")
@@ -30,7 +31,11 @@ func TestXrayConfigurationChecks(t *testing.T) {
 	if !strings.Contains(string(version), "Xray 26.10.31 ") || !strings.Contains(string(version), " a4a3dff ") {
 		t.Fatalf("unexpected test engine: %s", version)
 	}
+	return executable
+}
 
+func TestXrayConfigurationChecks(t *testing.T) {
+	executable := pinnedXray(t)
 	work := t.TempDir()
 	ambient := t.TempDir()
 	invalid := []byte(`{"outbounds":[{"protocol":"papilio-invalid"}]}`)

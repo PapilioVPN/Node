@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/papilio-platform/Node/actions/workflows/ci.yml"><img alt="وضعیت CI" src="https://github.com/papilio-platform/Node/actions/workflows/ci.yml/badge.svg?branch=main"></a>
-  <a href="go.mod"><img alt="Go 1.26 یا جدیدتر" src="https://img.shields.io/badge/Go-1.26%2B-00ADD8?style=flat-square&amp;logo=go&amp;logoColor=white"></a>
+  <a href="go.mod"><img alt="Go 1.27.3 یا جدیدتر" src="https://img.shields.io/badge/Go-1.27.3%2B-00ADD8?style=flat-square&amp;logo=go&amp;logoColor=white"></a>
   <img alt="وضعیت: ابتدای توسعه" src="https://img.shields.io/badge/status-early_development-8B5CF6?style=flat-square">
 </p>
 
@@ -34,9 +34,8 @@
 ## قابلیت‌های فعلی
 
 این نسخه، پایهٔ اجرایی و رابط خط فرمان پروژه را فراهم می‌کند.
-مدیریت هسته‌ها و API کنترل شبکه هنوز در دسترس نیستند.
-آداپتر داخلی Xray اکنون اعتبارسنجی بومی تنظیمات را انجام می‌دهد؛ این قابلیت
-هنوز فرمان CLI یا endpoint شبکه ندارد.
+آداپتر داخلی Xray اعتبارسنجی بومی تنظیمات و شروع و توقف فرایند متعلق به Node
+را انجام می‌دهد. عملیات هسته هنوز فرمان CLI یا endpoint کنترل شبکه ندارد.
 
 | قابلیت موجود | رفتار |
 | --- | --- |
@@ -45,13 +44,14 @@
 | بررسی نسخه | نسخه، نسخهٔ Go و پلتفرم هدف را به‌شکل خوانا نمایش می‌دهد. |
 | اطلاعات ساخت ساختاریافته | خروجی JSON شامل revision و وضعیت تغییرات کد، در صورت درج توسط Go است. |
 | بررسی بومی تنظیمات | اعتبارسنجی Xray با سقف منابع، امکان لغو و جزئیات خطای خصوصی؛ [دامنهٔ آزمایش‌شده و محدودیت‌ها](docs/engines/xray.md). |
-| بررسی روی Linux | در CI، ساخت و تست روی amd64 و arm64 به‌صورت native انجام می‌شود؛ همراه با بررسی تنظیمات Xray با نسخه و checksum ثابت. |
+| فرایندهای Xray متعلق به Node | تأیید آمادگی از API بومی روی سوکت Unix خصوصی، توقف با مهلت مشخص و پاک‌سازی منابع همان اجرا؛ فعلاً در آداپتر داخلی. [محدودیت‌های چرخهٔ اجرا](docs/engines/xray.md#owned-process-contract). |
+| بررسی روی Linux | در CI، ساخت و تست روی amd64 و arm64 به‌صورت native انجام می‌شود؛ همراه با بررسی تنظیمات و فرایند Xray با نسخه و checksum ثابت. |
 
 <a id="quick-start"></a>
 
 ## شروع کار
 
-[Go نسخهٔ 1.26 یا جدیدتر](https://go.dev/dl/) را نصب کنید و سپس پروژه را از سورس بسازید:
+[Go نسخهٔ 1.27.3 یا جدیدتر](https://go.dev/dl/) را نصب کنید و سپس پروژه را از سورس بسازید:
 
 <div dir="ltr">
 

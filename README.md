@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/papilio-platform/Node/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/papilio-platform/Node/actions/workflows/ci.yml/badge.svg?branch=main"></a>
-  <a href="go.mod"><img alt="Go 1.26 or newer" src="https://img.shields.io/badge/Go-1.26%2B-00ADD8?style=flat-square&amp;logo=go&amp;logoColor=white"></a>
+  <a href="go.mod"><img alt="Go 1.27.3 or newer" src="https://img.shields.io/badge/Go-1.27.3%2B-00ADD8?style=flat-square&amp;logo=go&amp;logoColor=white"></a>
   <img alt="Status: early development" src="https://img.shields.io/badge/status-early_development-8B5CF6?style=flat-square">
 </p>
 
@@ -30,9 +30,9 @@
 ## Current capabilities
 
 This revision provides the executable foundation and command-line interface.
-Engine management and the network control API are not available yet.
-The internal Xray adapter now provides native configuration validation; it is
-not exposed as a CLI command or network endpoint.
+The internal Xray adapter provides native configuration validation and owned
+process startup/shutdown. Engine operations are not exposed as CLI commands
+or network control endpoints yet.
 
 | Available now | Behavior |
 | --- | --- |
@@ -41,11 +41,12 @@ not exposed as a CLI command or network endpoint.
 | Version inspection | Human-readable version, Go version and target platform. |
 | Structured build metadata | JSON includes revision and working-tree state when embedded by Go. |
 | Native configuration checks | Bounded Xray validation with cancellation and private diagnostics. See [tested scope and limits](docs/engines/xray.md). |
-| Linux verification | CI builds and tests natively on amd64 and arm64, including checksum-pinned Xray configuration checks. |
+| Owned Xray processes | Native API readiness through a private Unix socket, bounded shutdown and owned-resource cleanup. Internal adapter only; see [lifecycle limits](docs/engines/xray.md#owned-process-contract). |
+| Linux verification | CI builds and tests natively on amd64 and arm64, including checksum-pinned Xray validation and process tests. |
 
 ## Quick start
 
-Install [Go 1.26 or newer](https://go.dev/dl/), then build from source:
+Install [Go 1.27.3 or newer](https://go.dev/dl/), then build from source:
 
 ```bash
 git clone https://github.com/papilio-platform/Node.git
