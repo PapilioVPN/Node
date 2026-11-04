@@ -72,6 +72,26 @@ To measure status reads over an actual ready Xray session, excluding startup:
 PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -run '^$' -bench '^BenchmarkInstanceStatus$' -benchmem -count=1 ./tests/integration
 ```
 
+The [instance acceptance checks](docs/instances.md#verification-and-cost) also
+exercise local payload forwarding across three lifecycle cycles, native rejection,
+startup listener conflicts, explicit recovery and process-lifetime shutdown.
+The HTTP proxy is private to the test's Unix socket; its target is a loopback
+fixture, avoiding a find-free-port/release/rebind setup. The conflict test owns
+the occupied port throughout failure injection and deliberately releases it for
+recovery. No test contacts an external destination.
+
+To measure the complete application service over its actual native adapter:
+
+```bash
+PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -run '^$' -bench '^BenchmarkInstanceLifecycle$' -benchtime=5x -benchmem -count=1 ./tests/integration
+```
+
+The phase metrics `start-ready-ns/op` and `stop-cleanup-ns/op` include actual native
+work; the standard total includes both application operations and outcome checks.
+Successful API readiness is distinct from the upstream signal-handler timing
+[limitation](docs/engines/xray.md#owned-process-contract). This benchmark requires
+a clean native shutdown and fails on abnormal termination.
+
 ## Reporting a problem
 
 Include `node version --json`, the command or operation, expected/actual results

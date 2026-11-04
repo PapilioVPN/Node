@@ -37,7 +37,7 @@ func nativeLauncher(t testing.TB, config []byte) (*xray.Launcher, context.Cancel
 	return launcher, shutdown, root
 }
 
-func assertNativeShutdown(t *testing.T, err error) {
+func assertNativeShutdown(t testing.TB, err error) {
 	t.Helper()
 	if err == nil {
 		return

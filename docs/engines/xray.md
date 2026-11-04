@@ -4,7 +4,9 @@ The internal adapter validates configuration and owns an Xray **v26.10.31**
 (commit `a4a3dff`) process. Native CI runs validation, API readiness and shutdown
 checks on **Linux amd64 and arm64**, using checksum-pinned official release
 archives. The [instance service](../instances.md) owns application lifecycle
-policy. Traffic, user management and control endpoints are not provided yet.
+policy. A private HTTP forwarding fixture verifies basic payload traversal across
+lifecycle cycles. User management, traffic-statistics operations and control
+endpoints are not provided yet; the fixture is not full protocol support evidence.
 
 The official native API client is pinned to the same source revision. Its module
 requires Go 1.27; Node builds use Go **1.27.3 or newer**.
@@ -44,6 +46,10 @@ is covered by the current fixtures.
 - Native exit and launch errors remain inspectable with `errors.As`/`errors.Is`.
   Invalid configurations exit 23 with the tested engine. Missing or non-executable
   binaries remain execution failures, rather than invalid configuration results.
+  A configuration can validate and still fail during startup: the tested occupied
+  listener case exits 255. Closing the native client after exit interrupts pending
+  readiness, preserving the actual process failure rather than waiting for the
+  readiness deadline. Releasing the conflict permits explicit stop/start recovery.
 - Concurrent calls retain independent process/output state. The calling capability
   owns admission limits; the checker creates no background queue or retry workers.
 

@@ -54,16 +54,22 @@ func TestLauncherRejectsUnsafeBoundsBeforeIO(t *testing.T) {
 
 func TestLauncherDetectsEarlyExitAndCleansPrivateFiles(t *testing.T) {
 	options := launchOptions(t)
+	options.ReadyTimeout = 30 * time.Second
 	config := helperConfig(t, helperRequest{Mode: "exit-after-validation"})
 	launcher, err := xray.NewLauncher(context.Background(), options, config)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = launcher.Start(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	_, err = launcher.Start(ctx)
 	var exit *exec.ExitError
 	var failure *xray.ProcessError
 	if !errors.As(err, &exit) || exit.ExitCode() != 42 || !errors.As(err, &failure) {
 		t.Fatalf("early exit cause lost: %v", err)
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("confirmed early exit waited for the readiness/caller deadline")
 	}
 	if !failure.Truncated || len(failure.Diagnostics) != options.Check.MaxDiagnosticBytes || !strings.HasSuffix(string(failure.Diagnostics), "private-exit-tail") || strings.Contains(err.Error(), "private-exit-tail") {
 		t.Fatal("unbounded, missing or publicly exposed process diagnostics")

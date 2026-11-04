@@ -72,6 +72,34 @@ failures remain `failed`, including when no usable session was returned.
 
 ## Verification and cost
 
+The tested composition constructs `xray.Launcher` with an explicit process
+lifetime, bounded native options and captured JSON, then injects it into
+`instance.New(id, "xray", launcher)`. The service owns admission and application
+state; the launcher/session own native execution, readiness and cleanup. See the
+actual [`nativeInstance` fixture](../tests/integration/instance_acceptance_linux_test.go)
+for this composition and its joined shutdown. The executable does not expose
+these engine operations as commands or management endpoints yet.
+
+Native acceptance uses Xray **v26.10.31** (`a4a3dff`) on Linux amd64/arm64. The
+following checks run against the official checksum-pinned binary, rather than a
+mock engine:
+
+| Outcome | Verification |
+| --- | --- |
+| Usable execution across repeated cycles | Start, native API readiness, unchanged-session reuse, exact local HTTP payload forwarding and stop; each stop confirms child reaping and owned runtime removal. Requests after stop cannot reach the target through the proxy. |
+| Request lifetime independence | Cancelling a completed start request leaves its successful session available for probing and real payload forwarding. |
+| Native validation rejection | Invalid engine configuration retains exit code 23 and bounded private diagnostics, commits no revision and requires explicit acknowledgement. |
+| Runtime startup failure and recovery | An occupied loopback port retains native exit code 255 without waiting for a readiness timeout. Explicit stop, release of the conflict and start recover the same binding. Borrowed listeners/files remain intact. |
+| Process owner termination | Ending the injected lifetime reaps the child, closes the native client and removes owned runtime files. Observation records the unrequested exit and keeps applied history; an ended lifetime cannot launch another engine. |
+| Unexpected exit and interrupted admission | SIGKILL and concurrent stop tests preserve actual exit causes, reject late application commits and confirm native cleanup before explicit recovery. |
+
+The forwarding fixture uses a private Unix **HTTP proxy** and a loopback HTTP
+target, with bounded payloads and client deadlines. It exercises unchanged native
+configuration through the lifecycle service. It does not establish full protocol,
+account-management, live-reconfiguration or traffic-statistics support. Node
+removes its own generated API directory; arbitrary paths referenced by engine
+configuration retain their declared engine/operator ownership.
+
 Controlled tests use Go's `testing/synctest` to verify contended admission, late
 completions, cancelled waiters, independent instances, revision history and engine
 call counts. A burst of 32 starts during an admitted probe causes no extra native
@@ -85,3 +113,10 @@ Status polling does not issue per-user or per-read engine requests. The
 [status benchmark](../CONTRIBUTING.md#native-xray-tests) measures this memory-only
 operation over a real session; it does not establish data-plane throughput or a
 performance advantage over another implementation.
+
+The [application lifecycle benchmark](../CONTRIBUTING.md#native-xray-tests) measures
+the actual bound-service start/API-ready/stop cycle, including native version
+observation and validation. It reports startup/readiness and shutdown/cleanup
+separately. Allocation results cover Node/client allocations, not Xray process
+memory. A non-graceful native stop fails the measurement; benchmark results must
+not silently treat forced termination as successful shutdown.

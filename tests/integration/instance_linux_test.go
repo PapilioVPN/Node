@@ -128,3 +128,26 @@ func BenchmarkInstanceStatus(b *testing.B) {
 		service.Status()
 	}
 }
+
+func BenchmarkInstanceLifecycle(b *testing.B) {
+	service, _, _ := nativeInstance(b,
+		[]byte(`{"log":{"loglevel":"none"},"outbounds":[{"protocol":"freedom"}]}`))
+	var startup, shutdown time.Duration
+	b.ReportAllocs()
+	for b.Loop() {
+		begin := time.Now()
+		started, err := service.Start(b.Context())
+		startup += time.Since(begin)
+		if err != nil || started.Phase != instance.PhaseReady || started.AppliedRevision != started.DesiredRevision {
+			b.Fatalf("native instance failed to become ready: %+v, %v", started, err)
+		}
+		begin = time.Now()
+		stopped, err := service.Stop(b.Context())
+		shutdown += time.Since(begin)
+		if err != nil || stopped.Phase != instance.PhaseStopped || !stopped.Process.CleanupComplete || stopped.Process.CleanupFailure != nil {
+			b.Fatalf("native instance failed to stop cleanly: %+v, %v", stopped, err)
+		}
+	}
+	b.ReportMetric(float64(startup)/float64(b.N), "start-ready-ns/op")
+	b.ReportMetric(float64(shutdown)/float64(b.N), "stop-cleanup-ns/op")
+}
