@@ -69,15 +69,15 @@ go build -trimpath -o bin/node ./cmd/node
 
 | فرمان | نتیجه |
 | --- | --- |
-| `node help` | نمایش راهنما و فرمان‌های موجود؛ `-h` و `--help` هم پذیرفته می‌شوند. |
-| `node version` | نمایش خوانای نسخه و پلتفرم. |
-| `node version --json` | نمایش فیلدهای `version`، `revision`، `modified`، `go_version`، `os` و `arch`. |
-| `node version --help` | نمایش گزینه‌های فرمان نسخه. |
+| <code dir="ltr">node help</code> | نمایش راهنما و فرمان‌های موجود؛ <code dir="ltr">-h</code> و <code dir="ltr">--help</code> هم پذیرفته می‌شوند. |
+| <code dir="ltr">node version</code> | نمایش خوانای نسخه و پلتفرم. |
+| <code dir="ltr">node version --json</code> | نمایش فیلدهای <code dir="ltr">version</code>، <code dir="ltr">revision</code>، <code dir="ltr">modified</code>، <code dir="ltr">go_version</code>، <code dir="ltr">os</code> و <code dir="ltr">arch</code>. |
+| <code dir="ltr">node version --help</code> | نمایش گزینه‌های فرمان نسخه. |
 
 خروجی نسخه از اطلاعات ماژول درج‌شده توسط Go استفاده می‌کند؛ در ساخت توسعه ممکن است
-یک pseudo-version براساس commit باشد. اگر نسخهٔ ماژول موجود نباشد، `devel` گزارش می‌شود.
-اگر اطلاعات VCS هنگام ساخت درج نشده باشد، `revision` خالی است؛ فایل اجرایی در زمان اجرا Git را فراخوانی نمی‌کند.
-فیلد `modified` وضعیت کد در زمان ساخت را نشان می‌دهد، نه وضعیت فایل‌های سیستم مقصد.
+یک pseudo-version براساس commit باشد. اگر نسخهٔ ماژول موجود نباشد، <code dir="ltr">devel</code> گزارش می‌شود.
+اگر اطلاعات VCS هنگام ساخت درج نشده باشد، <code dir="ltr">revision</code> خالی است؛ فایل اجرایی در زمان اجرا Git را فراخوانی نمی‌کند.
+فیلد <code dir="ltr">modified</code> وضعیت کد در زمان ساخت را نشان می‌دهد، نه وضعیت فایل‌های سیستم مقصد.
 
 کد خروج **0** به‌معنی موفقیت، **1** به‌معنی خطا در نوشتن خروجی و **2** به‌معنی
 استفادهٔ نادرست است. خطای فرمان نامعتبر در stderr نوشته می‌شود.
@@ -103,7 +103,7 @@ go build -trimpath -o bin/node ./cmd/node
 </div>
 
 CI همچنین یکسان‌بودن قالب‌بندی و وابستگی‌ها و آسیب‌پذیری‌های قابل‌دسترسی را با
-نسخهٔ ثابت `govulncheck` بررسی می‌کند. نسخهٔ کامپایلر و ابزار بررسی در
+نسخهٔ ثابت <code dir="ltr">govulncheck</code> بررسی می‌کند. نسخهٔ کامپایلر و ابزار بررسی در
 [فایل CI](.github/workflows/ci.yml) مشخص شده‌اند. تست race به ابزار C پشتیبانی‌شده نیاز دارد.
 
 ## مشارکت
