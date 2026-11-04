@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -71,7 +72,11 @@ func TestConfigurationControlsActualTrafficAndRejectsInvalidReplacement(t *testi
 	if err != nil || validation.RestartRequired || validation.Revision != started.DesiredRevision {
 		t.Fatalf("unchanged validation: %+v %v", validation, err)
 	}
-	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "configuration verified") }))
+	var received atomic.Int64
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received.Add(1)
+		io.WriteString(w, "configuration verified")
+	}))
 	defer target.Close()
 	transport := &http.Transport{Proxy: http.ProxyURL(&url.URL{Scheme: "http", Host: "owned-xray.invalid:8080"}), DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", socket)
@@ -112,10 +117,17 @@ func TestConfigurationControlsActualTrafficAndRejectsInvalidReplacement(t *testi
 		t.Fatalf("changed source did not replace execution: %+v", result)
 	}
 	transport.CloseIdleConnections()
+	beforeBlocked := received.Load()
 	response, err := client.Get(target.URL)
 	if err == nil {
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, 64))
 		response.Body.Close()
-		t.Fatal("blackhole replacement still forwarded traffic")
+		if readErr == nil && string(body) == "configuration verified" {
+			t.Fatal("blackhole replacement returned the target payload")
+		}
+	}
+	if beforeBlocked != 2 || received.Load() != beforeBlocked {
+		t.Fatal("blackhole replacement still reached the target")
 	}
 	if _, err := s.Apply(t.Context(), started.DesiredRevision, source); !errors.Is(err, instance.ErrRevisionConflict) {
 		t.Fatal("stale request replaced new source", err)
