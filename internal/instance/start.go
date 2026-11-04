@@ -12,8 +12,8 @@ func (s *Service) Start(ctx context.Context) (Snapshot, error) {
 	return s.start(ctx, nil)
 }
 
-// owner permits only the reserved restart to enter its replacement phase.
-func (s *Service) start(ctx context.Context, owner *restartAttempt) (Snapshot, error) {
+// owner permits only the reserved replacement to enter its startup phase.
+func (s *Service) start(ctx context.Context, owner *replacementAttempt) (Snapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return s.Status(), err
 	}
@@ -23,7 +23,7 @@ func (s *Service) start(ctx context.Context, owner *restartAttempt) (Snapshot, e
 		s.mu.Unlock()
 		return status, err
 	}
-	if s.restarting != owner || s.probing != nil {
+	if s.replacing != owner || s.probing != nil {
 		s.mu.Unlock()
 		return status, ErrBusy
 	}

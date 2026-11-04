@@ -122,6 +122,24 @@ runtime-output adapter, retaining 256 records at a 1024-byte line limit and a
 Record Go version, CPU and workload when comparing results. The measurement
 excludes actual engine/pipe/network execution; it is not data-plane throughput.
 
+## Configuration checks
+
+The full native suite covers unchanged reuse, conditional configuration
+replacement, invalid-source isolation, actual traffic changes, listener-conflict
+failure and explicit recovery. Controlled concurrency tests verify scoped
+admission and interruption during validation and replacement. See the
+[configuration contract](docs/configuration.md).
+
+```bash
+PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -run '^$' -bench '^BenchmarkConfigurationUnchangedApply$' -benchtime=10x -benchmem -count=3 ./tests/integration
+```
+
+This measures capture/hash, admission and a native API probe over a ready
+freedom-only Xray, checking the same PID and `Reused` result each time. It excludes
+initial startup and actual forwarding throughput. Healthy unchanged application
+executes no validation or startup subprocess; changed input is validated before
+old cleanup and rechecked by native startup.
+
 ## Reporting a problem
 
 Include `node version --json`, the command or operation, expected/actual results
@@ -134,6 +152,7 @@ Distinguish a confirmed result from an untested assumption.
 cmd/node/                 Process entrypoint and composition
 internal/buildinfo/       Binary metadata, independent of presentation
 internal/cli/             Command parsing, help, JSON and exit codes
+internal/configuration/   Engine-source validation, reads and conditional apply
 internal/cores/xray/      Native configuration, API readiness and owned processes
 internal/enginelog/       Bounded engine-output retention and pull subscriptions
 internal/instance/        Engine-independent lifecycle policy and observations
@@ -173,6 +192,11 @@ service imports no engine implementation, process API or generated messages;
 workflows. Unit tests use controlled contracts; integration tests compose the
 same service with the real Xray launcher and verify actual process termination.
 `restart.go` owns the reservation and recovery result. During restart, private
-lifecycle phases require its identity; public callers cannot bypass admission.
+lifecycle phases require the replacement identity; public callers cannot bypass admission.
 Restart shares the existing start/stop execution instead of constructing another
-engine owner or duplicating native lifecycle code.
+engine owner or duplicating native lifecycle code. `replacement.go` owns scoped
+replacement admission, activation and joined release, shared by restart and
+configuration application. Configuration declarations/read admission stay in
+`service.go`; `validate.go` and `apply.go` own their respective workflows.
+Within Xray, `revision_linux.go` owns fresh candidate capture, original-source
+reads and native effective-input validation/preparation shared with startup.

@@ -78,10 +78,11 @@ func (l *Launcher) Start(ctx context.Context) (session instance.ISession, err er
 		return nil, err
 	}
 	versionObservedAt := time.Now().UTC()
-	directory, err := os.MkdirTemp(l.options.RuntimeDir, "xray-")
+	prepared, err := l.prepareConfiguration()
 	if err != nil {
-		return nil, fmt.Errorf("create Xray runtime directory: %w", err)
+		return nil, err
 	}
+	directory := prepared.directory
 	var run *Session
 	var api *nativeAPI
 	defer func() {
@@ -106,18 +107,7 @@ func (l *Launcher) Start(ctx context.Context) (session instance.ISession, err er
 			err = errors.Join(context.Cause(ctx), err)
 		}
 	}()
-	socket := filepath.Join(directory, "api.sock")
-	if len(socket) > 107 {
-		return nil, errors.New("Xray private socket path exceeds the Linux path limit")
-	}
-	overlay, err := prepareAPIOverlay(l.config, socket)
-	if err != nil {
-		return nil, fmt.Errorf("prepare Xray API configuration: %w", err)
-	}
-	path := filepath.Join(directory, "api.json")
-	if err := os.WriteFile(path, overlay, 0600); err != nil {
-		return nil, fmt.Errorf("write Xray API configuration: %w", err)
-	}
+	socket, path := prepared.socket, prepared.path
 	if err := l.checker.check(ctx, l.config, path); err != nil {
 		return nil, err
 	}

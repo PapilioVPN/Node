@@ -51,6 +51,72 @@ func TestRuntimeFailureFlushesSensitiveUnterminatedLog(t *testing.T) {
 	assertRuntimeEmpty(t, options.RuntimeDir)
 }
 
+func TestCapturedValidationUsesEffectiveAPIAndPrivateCleanup(t *testing.T) {
+	options := launchOptions(t)
+	captured := helperConfig(t, helperRequest{Mode: "output"})
+	launcher, err := xray.NewLauncher(t.Context(), options, captured)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := launcher.Source()
+	source[0] = 'x'
+	if string(launcher.Source()) != string(captured) {
+		t.Fatal("captured source is mutable")
+	}
+	err = launcher.Validate(t.Context())
+	var rejected *xray.CheckError
+	if !errors.As(err, &rejected) || !rejected.Truncated || len(rejected.Diagnostics) != options.Check.MaxDiagnosticBytes || strings.Contains(err.Error(), "private-tail") {
+		t.Fatalf("effective native validation bypassed: %v", err)
+	}
+	assertRuntimeEmpty(t, options.RuntimeDir)
+	valid, err := xray.NewLauncher(t.Context(), options, helperConfig(t, helperRequest{Mode: "validate-with-overlay"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := valid.Validate(t.Context()); err != nil {
+		t.Fatal("check did not consume owned effective overlay", err)
+	}
+	assertRuntimeEmpty(t, options.RuntimeDir)
+}
+
+func TestCapturedValidationHonorsCancelledLifetimeBeforeIO(t *testing.T) {
+	options := launchOptions(t)
+	lifetime, cancel := context.WithCancel(t.Context())
+	cancel()
+	launcher, err := xray.NewLauncher(lifetime, options, helperConfig(t, helperRequest{Mode: "output"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := launcher.Validate(t.Context()); !errors.Is(err, context.Canceled) {
+		t.Fatal("validation ignored lifetime cancellation", err)
+	}
+	assertRuntimeEmpty(t, options.RuntimeDir)
+}
+
+func TestCapturedValidationDeadlineReapsChildAndFiles(t *testing.T) {
+	options := launchOptions(t)
+	ready := filepath.Join(options.Check.WorkingDir, "validation-pid")
+	launcher, err := xray.NewLauncher(t.Context(), options, helperConfig(t, helperRequest{Mode: "block", ReadyFile: ready}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := launcher.Validate(t.Context()); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("native validation deadline lost: %v", err)
+	}
+	data, err := os.ReadFile(ready)
+	if err != nil {
+		t.Fatal("controlled native validation never executed", err)
+	}
+	pid, err := strconv.Atoi(string(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
+		t.Fatal("validation child remained after return", err)
+	}
+	assertRuntimeEmpty(t, options.RuntimeDir)
+}
+
 func assertRuntimeEmpty(t *testing.T, path string) {
 	t.Helper()
 	entries, err := os.ReadDir(path)

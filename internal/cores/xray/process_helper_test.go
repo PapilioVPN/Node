@@ -80,6 +80,24 @@ func runXrayHelper() int {
 		return 91
 	}
 	switch request.Mode {
+	case "validate-with-overlay":
+		if !checking || overlay == "" {
+			return 81
+		}
+		var projected struct {
+			API struct {
+				Tag, Listen string
+				Services    []string
+			}
+		}
+		data, err := os.ReadFile(overlay)
+		if err != nil || json.Unmarshal(data, &projected) != nil || projected.API.Tag != "papilio-api" || !filepath.IsAbs(projected.API.Listen) || !slices.Contains(projected.API.Services, "StatsService") {
+			return 82
+		}
+		info, err := os.Stat(overlay)
+		if err != nil || info.Mode().Perm() != 0600 {
+			return 83
+		}
 	case "environment":
 		cwd, err := os.Getwd()
 		if err != nil || cwd != request.WorkingDir {

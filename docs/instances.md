@@ -1,7 +1,7 @@
 # Instance lifecycle and observation
 
 `internal/instance.Service` coordinates one identified managed engine process and one captured
-configuration revision. Its constructor performs no engine I/O. The tested
+configuration binding. Its constructor performs no engine I/O. The tested
 composition uses the native [Xray launcher](engines/xray.md) on Linux amd64/arm64.
 There is no management endpoint or engine CLI command in this revision.
 
@@ -74,6 +74,23 @@ Cancellation and cleanup failure remain independently inspectable when both occu
 Restart is intentionally disruptive and repeated successful calls each create a
 fresh execution; it is not an idempotent retry contract or a live configuration
 change. These distinctions apply before any transport maps the result.
+
+### Scoped configuration replacement
+
+The [configuration capability](configuration.md) uses `BeginReplacement(ctx,
+expected)` to reserve the expected desired content revision before native
+preflight. A stale revision returns `ErrRevisionConflict`. `Replacement.Context`
+includes Stop interruption. Its single owner must call `Close`, even after
+failed validation; Stop waits for that completion. `Reuse` probes the reserved
+ready execution; `Activate` joins old cleanup, binds immutable new input and
+starts it through the same native owner. `Close` joins Stop-requested cleanup and
+releases admission. These scope methods are for one owner, not concurrent calls.
+
+Restart uses this same reservation and activation path with the current starter.
+Application configuration orchestration remains in its own package. The lifecycle
+owner neither parses engine input nor constructs its preparation or validation.
+Configuration replacement can therefore retain a new desired revision after
+failed startup while historical `AppliedRevision` remains the last admitted run.
 
 ## State meaning
 

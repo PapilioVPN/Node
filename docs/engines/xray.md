@@ -64,6 +64,15 @@ cancellation, reaping and concurrent calls.
 
 ## Owned process contract
 
+`ConfigurationFactory` captures launchers for the separate
+[configuration service](../configuration.md). `Launcher.Source` returns an owned
+copy of the sensitive original bytes. `Launcher.Validate` prepares the same
+private API overlay as Start, performs native validation without listeners and
+removes its owned directory before returning. It respects both caller cancellation
+and the injected process lifetime. Unlike the raw `Checker.Check` operation, this
+checks the effective Node-managed input. Native validation is not readiness and
+does not freeze executable/asset contents for a later startup.
+
 `NewLauncher` captures a bounded copy of the supplied JSON without I/O. The caller
 provides the process lifetime context, native check options, an absolute runtime
 parent directory and positive readiness/shutdown deadlines. The parent and working

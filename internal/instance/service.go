@@ -24,7 +24,7 @@ type Service struct {
 	starting   *startAttempt
 	probing    *probeAttempt
 	stopping   *stopOperation
-	restarting *restartAttempt
+	replacing  *replacementAttempt
 }
 
 type startAttempt struct {

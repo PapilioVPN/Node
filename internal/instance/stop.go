@@ -12,8 +12,8 @@ func (s *Service) Stop(ctx context.Context) (Snapshot, error) {
 	return s.stop(ctx, nil)
 }
 
-// owner keeps restart's stop phase inside its existing reservation.
-func (s *Service) stop(ctx context.Context, owner *restartAttempt) (Snapshot, error) {
+// owner keeps replacement cleanup inside its existing reservation.
+func (s *Service) stop(ctx context.Context, owner *replacementAttempt) (Snapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return s.Status(), err
 	}
@@ -23,8 +23,8 @@ func (s *Service) stop(ctx context.Context, owner *restartAttempt) (Snapshot, er
 		s.mu.Unlock()
 		return status, err
 	}
-	if s.restarting != owner {
-		attempt := s.restarting
+	if s.replacing != owner {
+		attempt := s.replacing
 		attempt.stopRequested = true
 		s.phase = PhaseStopping
 		if s.starting != nil {

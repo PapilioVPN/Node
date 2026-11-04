@@ -30,6 +30,8 @@ var (
 	ErrUnexpectedExit = errors.New("engine exited unexpectedly")
 	// ErrCleanupIncomplete means owned resources could not be confirmed released.
 	ErrCleanupIncomplete = errors.New("engine cleanup incomplete")
+	// ErrRevisionConflict rejects a replacement based on different desired input.
+	ErrRevisionConflict = errors.New("instance desired revision has changed")
 )
 
 // Exit records confirmed process termination. Code is -1 for a signal exit.
