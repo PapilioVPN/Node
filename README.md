@@ -33,6 +33,8 @@ This revision provides the executable foundation and command-line interface.
 The internal Xray adapter provides native configuration validation and owned
 process startup/shutdown. Engine operations are not exposed as CLI commands
 or network control endpoints yet.
+The internal instance service coordinates lifecycle operations and reports
+configuration revisions, native version and confirmed process outcomes.
 
 | Available now | Behavior |
 | --- | --- |
@@ -42,6 +44,7 @@ or network control endpoints yet.
 | Structured build metadata | JSON includes revision and working-tree state when embedded by Go. |
 | Native configuration checks | Bounded Xray validation with cancellation and private diagnostics. See [tested scope and limits](docs/engines/xray.md). |
 | Owned Xray processes | Native API readiness through a private Unix socket, bounded shutdown and owned-resource cleanup. Internal adapter only; see [lifecycle limits](docs/engines/xray.md#owned-process-contract). |
+| Instance observations | Typed lifecycle state, desired/applied revisions, native version and exit/cleanup outcomes. Status reads perform no engine I/O; see [instance contracts](docs/instances.md). |
 | Linux verification | CI builds and tests natively on amd64 and arm64, including checksum-pinned Xray validation and process tests. |
 
 ## Quick start

@@ -1,10 +1,21 @@
 package xray
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strings"
+
+	"github.com/papilio-platform/Node/internal/instance"
 )
+
+func configurationRevision(config []byte) instance.Revision {
+	digest := sha256.New()
+	digest.Write([]byte("papilio/xray/api-overlay/v1\x00"))
+	digest.Write(config)
+	return instance.Revision(hex.EncodeToString(digest.Sum(nil)))
+}
 
 // apiConfiguration projects the three fields understood by the pinned engine.
 type apiConfiguration struct {

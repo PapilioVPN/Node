@@ -3,8 +3,8 @@
 The internal adapter validates configuration and owns an Xray **v26.10.31**
 (commit `a4a3dff`) process. Native CI runs validation, API readiness and shutdown
 checks on **Linux amd64 and arm64**, using checksum-pinned official release
-archives. Traffic, user management, lifecycle application policy and control
-endpoints are not provided by this adapter slice.
+archives. The [instance service](../instances.md) owns application lifecycle
+policy. Traffic, user management and control endpoints are not provided yet.
 
 The official native API client is pinned to the same source revision. Its module
 requires Go 1.27; Node builds use Go **1.27.3 or newer**.
@@ -59,6 +59,17 @@ provides the process lifetime context, native check options, an absolute runtime
 parent directory and positive readiness/shutdown deadlines. The parent and working
 directories remain caller-owned. Callers coordinate conflicting launches.
 
+Startup reads the selected executable's `version` once with the check timeout,
+pipe-wait and diagnostic-byte bounds. It does not substitute the linked API
+client's version. The executable must not be replaced during startup; the
+version observation is not an atomic filesystem snapshot. The session retains
+the version and its observation time. Status reads never start another command.
+
+`Revision` is SHA256 of the original configuration bytes and the API preparation
+policy identifier. Runtime/socket paths are excluded. Whitespace changes produce
+a different revision; referenced file/asset contents and executable versions are
+not part of this configuration digest.
+
 Each `Start` creates a fresh 0700 directory with a 0600 API overlay and private
 filesystem Unix socket. The original configuration stays unchanged on stdin.
 The overlay preserves the native API tag and service order, adds `StatsService`
@@ -87,3 +98,10 @@ An early SIGTERM can therefore terminate it without graceful engine cleanup;
 Node reports that native exit and still reaps and removes its owned resources.
 It does not report the signal exit as graceful success or add a timing-based sleep.
 Application state/recovery policy must account for the actual exit outcome.
+
+`Session.Observe` copies confirmed process facts under a short lock: PID,
+executable version, startup/readiness times, exit code/signal/cause and cleanup
+outcome. Exit becomes visible after the one native Wait, separately from cleanup
+completion. `CleanupComplete` means the cleanup attempt finished; a non-nil
+`CleanupFailure` means release failed. Returned exit records can be modified
+without changing session state; error objects remain shared read-only.

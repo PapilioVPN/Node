@@ -1,0 +1,88 @@
+// Package instance owns the lifecycle policy of a bound managed engine process.
+package instance
+
+import (
+	"context"
+	"errors"
+	"time"
+)
+
+// Revision identifies captured configuration and its preparation policy.
+type Revision string
+
+// Phase describes application lifecycle state, not a fresh health check.
+type Phase string
+
+const (
+	PhaseStopped  Phase = "stopped"
+	PhaseStarting Phase = "starting"
+	PhaseReady    Phase = "ready"
+	PhaseStopping Phase = "stopping"
+	PhaseFailed   Phase = "failed"
+)
+
+var (
+	// ErrBusy indicates an active conflicting lifecycle operation.
+	ErrBusy = errors.New("instance lifecycle operation in progress")
+	// ErrFailed requires explicit stop/recovery before another start.
+	ErrFailed = errors.New("instance requires explicit recovery")
+	// ErrUnexpectedExit includes successful exits while the instance should run.
+	ErrUnexpectedExit = errors.New("engine exited unexpectedly")
+	// ErrCleanupIncomplete means owned resources could not be confirmed released.
+	ErrCleanupIncomplete = errors.New("engine cleanup incomplete")
+)
+
+// Exit records confirmed process termination. Code is -1 for a signal exit.
+type Exit struct {
+	At     time.Time
+	Code   int
+	Signal int
+	Cause  error
+}
+
+// ProcessObservation separates process exit, resource cleanup and API readiness.
+// Exit is nil until termination is confirmed. Error values are shared read-only.
+type ProcessObservation struct {
+	PID               int
+	Version           string
+	VersionObservedAt time.Time
+	StartedAt         time.Time
+	ReadyAt           time.Time
+	Exit              *Exit
+	// CleanupComplete marks a finished attempt; CleanupFailure determines success.
+	CleanupComplete bool
+	CleanupFailure  error
+	Failure         error
+}
+
+// Snapshot reports the current operation and observed execution facts.
+// AppliedRevision and ReadyAt are historical; ObservedAt is not API freshness.
+type Snapshot struct {
+	ID              string
+	Engine          string
+	Phase           Phase
+	DesiredRevision Revision
+	AppliedRevision Revision
+	Process         ProcessObservation
+	ObservedAt      time.Time
+	LastFailure     error
+}
+
+// ISession owns one managed engine process. Observe performs no I/O. Probe is bounded
+// by context and adapter limits. Stop owns bounded cleanup even if ctx expires;
+// Stop and Wait return only after cleanup unless their waiting context ends.
+type ISession interface {
+	PID() int
+	Observe() ProcessObservation
+	Probe(context.Context) error
+	Stop(context.Context) error
+	Wait(context.Context) error
+}
+
+// IStarter binds immutable input. Revision performs no I/O; a failed Start joins
+// owned cleanup before returning, or reports ErrCleanupIncomplete. Returned
+// sessions outlive the start request.
+type IStarter interface {
+	Revision() Revision
+	Start(context.Context) (ISession, error)
+}

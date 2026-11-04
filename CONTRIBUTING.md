@@ -66,6 +66,12 @@ figures describe Node/client allocations, not the external engine's memory.
 This benchmark does not measure traffic throughput or establish superiority
 over another Node implementation.
 
+To measure status reads over an actual ready Xray session, excluding startup:
+
+```bash
+PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -run '^$' -bench '^BenchmarkInstanceStatus$' -benchmem -count=1 ./tests/integration
+```
+
 ## Reporting a problem
 
 Include `node version --json`, the command or operation, expected/actual results
@@ -79,6 +85,7 @@ cmd/node/                 Process entrypoint and composition
 internal/buildinfo/       Binary metadata, independent of presentation
 internal/cli/             Command parsing, help, JSON and exit codes
 internal/cores/xray/      Native configuration, API readiness and owned processes
+internal/instance/        Engine-independent lifecycle policy and observations
 internal/terminal/theme/  Shared terminal styles, with no environment or I/O
 internal/tui/             Interactive session, navigation and views
 internal/tui/pages/       Pure information and command-reference content
@@ -104,4 +111,9 @@ metadata, command text and styles without importing event, process or CLI code.
 Within the Xray adapter, `configuration.go` owns the pure management projection,
 `check.go` native validation, `api.go` the native client, `launch_linux.go` owned
 startup and `process_linux.go` the running session/Wait/shutdown. Bounded output
-retention stays in `diagnostics.go`. None imports presentation or application policy.
+retention stays in `diagnostics.go`. None imports presentation code.
+Native adapters depend on the instance owner's typed contracts. The instance
+service imports no engine implementation, process API or generated messages;
+`service.go` owns state/snapshots, while `start.go` and `stop.go` own their respective
+workflows. Unit tests use controlled contracts; integration tests compose the
+same service with the real Xray launcher and verify actual process termination.
