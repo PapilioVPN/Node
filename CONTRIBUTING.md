@@ -58,6 +58,9 @@ event models. Test files are excluded from ordinary builds. Add responsibility
 packages when actual behavior needs them, and keep dependencies acyclic.
 The CLI launches the TUI with explicit content/presentation options; the TUI does
 not parse CLI arguments or decide process exit codes.
+Within the CLI, `cli.go` owns root dispatch, `version.go` owns version output,
+`tui.go` owns interactive entry, `help.go` owns command discovery and
+`terminal.go` owns terminal/color policy.
 Both adapters use the terminal theme; they own color policy and background
 detection respectively. The theme only constructs Lip Gloss styles from those
 explicit inputs and does not import either adapter.

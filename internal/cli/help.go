@@ -2,39 +2,9 @@ package cli
 
 import (
 	"fmt"
-	"io"
-	"os"
-
-	"github.com/charmbracelet/colorprofile"
-	"github.com/charmbracelet/x/term"
 
 	"github.com/papilio-platform/Node/internal/terminal/theme"
 )
-
-func isTerminal(stream any) bool {
-	file, ok := stream.(*os.File)
-	return ok && term.IsTerminal(file.Fd())
-}
-
-func colorEnabled(mode string, output io.Writer) bool {
-	enabled := mode == "always"
-	if mode == "auto" {
-		// NO_COLOR specifies any nonempty value, including "0" or "false".
-		enabled = isTerminal(output) && os.Getenv("TERM") != "dumb" && os.Getenv("NO_COLOR") == ""
-	}
-	return enabled
-}
-
-func outputProfile(mode string, output io.Writer) colorprofile.Profile {
-	profile := colorprofile.NoTTY
-	if colorEnabled(mode, output) {
-		profile = max(colorprofile.ANSI, colorprofile.Env(os.Environ()))
-		if mode == "always" {
-			profile = colorprofile.TrueColor
-		}
-	}
-	return profile
-}
 
 func renderHelp(p theme.Styles) string {
 	return fmt.Sprintf(`%s  %s
