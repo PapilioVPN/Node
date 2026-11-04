@@ -191,8 +191,9 @@ service imports no engine implementation, process API or generated messages;
 `service.go` owns state/snapshots, while `start.go` and `stop.go` own their respective
 workflows. Unit tests use controlled contracts; integration tests compose the
 same service with the real Xray launcher and verify actual process termination.
-`restart.go` owns the reservation and recovery result. During restart, private
-lifecycle phases require the replacement identity; public callers cannot bypass admission.
+`restart.go` coordinates explicit restart and its recovery result. Private
+lifecycle phases require the replacement identity; public callers cannot bypass
+admission.
 Restart shares the existing start/stop execution instead of constructing another
 engine owner or duplicating native lifecycle code. `replacement.go` owns scoped
 replacement admission, activation and joined release, shared by restart and
