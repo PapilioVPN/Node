@@ -68,8 +68,9 @@ type Snapshot struct {
 	LastFailure     error
 }
 
-// ISession owns one managed engine process. Observe performs no I/O. Probe is bounded
-// by context and adapter limits. Stop owns bounded cleanup even if ctx expires;
+// ISession owns one managed engine process and supports concurrent calls. Observe
+// performs no I/O. Probe honors cancellation and adapter limits, including while
+// Stop runs. Stop owns bounded cleanup even if ctx expires;
 // Stop and Wait return only after cleanup unless their waiting context ends.
 type ISession interface {
 	PID() int

@@ -44,7 +44,7 @@ configuration revisions, native version and confirmed process outcomes.
 | Structured build metadata | JSON includes revision and working-tree state when embedded by Go. |
 | Native configuration checks | Bounded Xray validation with cancellation and private diagnostics. See [tested scope and limits](docs/engines/xray.md). |
 | Owned Xray processes | Native API readiness through a private Unix socket, bounded shutdown and owned-resource cleanup. Internal adapter only; see [lifecycle limits](docs/engines/xray.md#owned-process-contract). |
-| Instance observations | Typed lifecycle state, desired/applied revisions, native version and exit/cleanup outcomes. Status reads perform no engine I/O; see [instance contracts](docs/instances.md). |
+| Instance lifecycle | Typed state, desired/applied revisions, native version and exit/cleanup outcomes. Contended starts are bounded; concurrent stops share cleanup. Status reads perform no engine I/O; see [instance contracts](docs/instances.md). |
 | Linux verification | CI builds and tests natively on amd64 and arm64, including checksum-pinned Xray validation and process tests. |
 
 ## Quick start

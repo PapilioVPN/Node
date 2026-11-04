@@ -22,6 +22,7 @@ type Service struct {
 	failure    error
 	generation uint64
 	starting   *startAttempt
+	probing    *probeAttempt
 	stopping   *stopOperation
 }
 
@@ -35,6 +36,11 @@ type startAttempt struct {
 type stopOperation struct {
 	done chan struct{}
 	err  error
+}
+
+type probeAttempt struct {
+	cancel context.CancelFunc
+	done   chan struct{}
 }
 
 // New constructs a stopped instance without executing engine work.

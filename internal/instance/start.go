@@ -6,7 +6,8 @@ import (
 )
 
 // Start starts the captured revision or probes/reuses its ready session. It never
-// repairs a failed instance implicitly. Cancellation before commit joins cleanup.
+// repairs a failed instance implicitly. Overlapping starts return ErrBusy, including
+// while a reuse probe runs. Cancellation before commit joins cleanup.
 func (s *Service) Start(ctx context.Context) (Snapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return s.Status(), err
@@ -17,6 +18,10 @@ func (s *Service) Start(ctx context.Context) (Snapshot, error) {
 		s.mu.Unlock()
 		return status, err
 	}
+	if s.probing != nil {
+		s.mu.Unlock()
+		return status, ErrBusy
+	}
 	switch status.Phase {
 	case PhaseStarting, PhaseStopping:
 		s.mu.Unlock()
@@ -26,10 +31,19 @@ func (s *Service) Start(ctx context.Context) (Snapshot, error) {
 		return status, errors.Join(ErrFailed, status.LastFailure)
 	case PhaseReady:
 		session, generation := s.session, s.generation
+		probeCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		attempt := &probeAttempt{cancel: cancel, done: make(chan struct{})}
+		s.probing = attempt
 		s.mu.Unlock()
-		err := session.Probe(ctx)
+		err := session.Probe(probeCtx)
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		s.probing = nil
+		close(attempt.done)
+		if probeCtx.Err() != nil {
+			err = errors.Join(context.Cause(probeCtx), err)
+		}
 		if s.generation != generation || s.phase != PhaseReady {
 			return s.snapshotLocked(), errors.Join(ErrBusy, err)
 		}

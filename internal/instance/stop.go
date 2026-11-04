@@ -7,6 +7,7 @@ import (
 
 // Stop owns accepted cleanup independently of the caller's waiting context.
 // Repeated callers join the current operation; a cancelled caller can join later.
+// Shutdown cancels and joins any admitted reuse probe before admitting a new run.
 func (s *Service) Stop(ctx context.Context) (Snapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return s.Status(), err
@@ -54,13 +55,20 @@ func (s *Service) Stop(ctx context.Context) (Snapshot, error) {
 	operation := &stopOperation{done: make(chan struct{})}
 	s.stopping = operation
 	session := s.session
+	probe := s.probing
 	s.mu.Unlock()
-	go s.finishStop(session, operation)
+	go s.finishStop(session, probe, operation)
 	return s.waitStop(ctx, operation)
 }
 
-func (s *Service) finishStop(session ISession, operation *stopOperation) {
+func (s *Service) finishStop(session ISession, probe *probeAttempt, operation *stopOperation) {
+	if probe != nil {
+		probe.cancel()
+	}
 	err := session.Stop(context.Background())
+	if probe != nil {
+		<-probe.done
+	}
 	observation := session.Observe()
 	s.mu.Lock()
 	defer s.mu.Unlock()
