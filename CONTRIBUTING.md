@@ -19,7 +19,7 @@ focused changes. Describe the resulting behavior and how you verified it.
 Run:
 
 ```bash
-gofmt -w cmd internal
+gofmt -w cmd internal tests
 go mod tidy
 go mod verify
 go vet ./...
@@ -29,9 +29,31 @@ go build -trimpath -o bin/node ./cmd/node
 
 The [CI workflow](.github/workflows/ci.yml) declares the pinned compiler/scanner
 and verifies native Linux amd64 and arm64 builds.
+Linux tests open isolated pseudo-terminals to verify keyboard navigation,
+resize, cancellation, signals and restoration. For terminal changes, also inspect
+the real `node tui` in light/dark themes, a small window and colorless mode.
+Keep JSON output free of all terminal styling and control codes.
 
 ## Reporting a problem
 
 Include `node version --json`, the command or operation, expected/actual results
 and steps to reproduce. Remove secrets and private user data from any examples.
 Distinguish a confirmed result from an untested assumption.
+
+## Code organization
+
+```text
+cmd/node/            Process entrypoint and composition
+internal/buildinfo/ Binary metadata, independent of presentation
+internal/cli/       Command parsing, help, JSON and exit codes
+internal/tui/       Interactive session, navigation and views
+tests/integration/  Real cross-package and OS integration tests
+```
+
+Keep ordinary `*_test.go` files beside the package they verify, as in the
+[Go module layout guide](https://go.dev/doc/modules/layout). Use `package name_test`
+for external contract tests; same-package tests can verify internal policies or
+event models. Test files are excluded from ordinary builds. Add responsibility
+packages when actual behavior needs them, and keep dependencies acyclic.
+The CLI launches the TUI with explicit content/presentation options; the TUI does
+not parse CLI arguments or decide process exit codes.

@@ -39,7 +39,7 @@ jobs:
 
       - name: Check formatting
         run: |
-          unformatted=$(gofmt -l cmd internal)
+          unformatted=$(gofmt -l cmd internal tests)
           if [ -n "$unformatted" ]; then
             printf 'Run gofmt on:\n%s\n' "$unformatted"
             exit 1

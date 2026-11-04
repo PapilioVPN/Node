@@ -35,6 +35,7 @@ Engine management and the network control API are not available yet.
 | Available now | Behavior |
 | --- | --- |
 | Command discovery | Help lists the commands this binary actually provides. |
+| Terminal console | Branded, keyboard-driven overview, build details and command reference with scrolling and responsive layout. |
 | Version inspection | Human-readable version, Go version and target platform. |
 | Structured build metadata | JSON includes revision and working-tree state when embedded by Go. |
 | Linux verification | CI builds and tests the CLI natively on amd64 and arm64. |
@@ -50,6 +51,7 @@ go build -trimpath -o bin/node ./cmd/node
 ./bin/node help
 ./bin/node version
 ./bin/node version --json
+./bin/node tui
 ```
 
 This builds the development CLI. It does not install a system service or change
@@ -63,6 +65,38 @@ network configuration. Versioned installation packages are not published yet.
 | `node version` | Print a readable version and platform description. |
 | `node version --json` | Print `version`, `revision`, `modified`, `go_version`, `os` and `arch`. |
 | `node version --help` | Show version command options. |
+| `node tui` | Open the interactive console in a terminal. |
+| `node tui --help` | Show console requirements and navigation. |
+| `node --color=auto\|always\|never <command>` | Select styling. Global options go before the command. |
+
+### Interactive console
+
+Run `node tui` to browse **Overview**, **Build** and **Commands**. The console
+inspects the current binary; it does not query a running Node service or manage
+engines. It uses a full-screen terminal view and restores the previous screen,
+cursor and input modes when it closes.
+
+| Keys | Action |
+| --- | --- |
+| `Tab` / `Shift+Tab`, `←` / `→` or `h` / `l` | Switch pages. |
+| `1` / `2` / `3` | Overview, build details or commands. |
+| `↑` / `↓` or `k` / `j` | Scroll the page. |
+| `PgUp` / `PgDown`, `Home` / `End` | Page through content or jump to its start/end. |
+| `?` | Toggle keyboard help. |
+| `Esc` | Close help; otherwise quit. |
+| `q` / `Ctrl+C` | Quit the console. |
+
+The layout adapts to window size and terminal light/dark background reports.
+Below **48 columns × 16 rows**, it shows a resize hint and keeps exit keys active.
+The console requires terminal input and output; redirected streams and
+`TERM=dumb` receive a usage error without entering interactive mode.
+
+Human output uses color automatically on a capable terminal. Any nonempty
+`NO_COLOR` disables automatic styling. `--color=never` removes styling;
+`--color=always` explicitly enables it, including for redirected human output.
+The explicit option takes precedence over `NO_COLOR`. Interactive screen-control
+codes are still necessary in the colorless TUI. JSON is always unstyled and
+contains no terminal control codes, regardless of the color option.
 
 Version output uses Go's embedded module version, which can be a commit-based
 pseudo-version for a development build. It falls back to `devel` when no module
@@ -70,16 +104,18 @@ version is available. A build without VCS metadata reports an empty `revision`;
 the binary does not invoke Git at runtime. `modified` describes the source state
 at build time, not files on the machine running the binary.
 
-Exit codes are **0** for success, **1** for output failure and **2** for invalid
+Exit codes are **0** for success, **1** for execution/output failure and **2** for invalid
 usage. Invalid commands produce a diagnostic on stderr.
 
 ## Development
 
-The current executable uses the Go standard library and has no third-party
-runtime dependencies. Run the same core checks used in CI:
+The terminal interface uses pinned [Bubble Tea](https://github.com/charmbracelet/bubbletea),
+[Bubbles](https://github.com/charmbracelet/bubbles) and
+[Lip Gloss](https://github.com/charmbracelet/lipgloss) dependencies. Run the same
+core checks used in CI:
 
 ```bash
-gofmt -w cmd internal
+gofmt -w cmd internal tests
 go mod tidy
 go mod verify
 go vet ./...
@@ -90,6 +126,8 @@ go build -trimpath -o bin/node ./cmd/node
 CI also checks module/formatting consistency and reachable vulnerabilities with
 a pinned `govulncheck`. Compiler and scanner versions are declared in the
 [CI workflow](.github/workflows/ci.yml). Race tests require a supported C toolchain.
+Linux tests exercise real pseudo-terminals for navigation, resize, color policy,
+cancellation, signals and terminal restoration.
 
 ## Contributing
 

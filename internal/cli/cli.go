@@ -2,33 +2,42 @@
 package cli
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 
+	"github.com/charmbracelet/colorprofile"
+
 	"github.com/papilio-platform/Node/internal/buildinfo"
 )
 
-const usage = `PapilioVPN Node
-
-Usage:
-  node help
-  node version [--json]
-
-Commands:
-  help     Show available commands.
-  version  Print binary version and build metadata.
-
-Engine management is not available in this development build.
-`
-
 // Run executes a CLI command and returns its process exit code: 0 for success,
-// 1 for an output failure, and 2 for invalid usage. The caller owns the writers.
-func Run(args []string, stdout, stderr io.Writer, info buildinfo.Info) int {
+// 1 for an execution/output failure, and 2 for invalid usage. The caller owns
+// the streams. Only the explicit tui command takes over an interactive terminal.
+func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer, info buildinfo.Info) int {
+	flags := flag.NewFlagSet("node", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	flags.Usage = func() {} // Root help belongs on stdout, including --help.
+	color := flags.String("color", "auto", "Color mode: auto, always, never (before the command).")
+	parseErr := flags.Parse(args)
+	if parseErr != nil && !errors.Is(parseErr, flag.ErrHelp) {
+		return 2
+	}
+	if *color != "auto" && *color != "always" && *color != "never" {
+		fmt.Fprintln(stderr, "color must be auto, always or never")
+		return 2
+	}
+	styles := newPalette(colorEnabled(*color, stdout))
+	humanOutput := &colorprofile.Writer{Forward: stdout, Profile: outputProfile(*color, stdout)}
+	humanError := &colorprofile.Writer{Forward: stderr, Profile: outputProfile(*color, stderr)}
+	args = flags.Args()
+	if errors.Is(parseErr, flag.ErrHelp) {
+		args = []string{"help"}
+	}
 	if len(args) == 0 {
-		fmt.Fprint(stderr, usage)
+		fmt.Fprint(humanError, renderHelp(newPalette(colorEnabled(*color, stderr))))
 		return 2
 	}
 
@@ -38,62 +47,17 @@ func Run(args []string, stdout, stderr io.Writer, info buildinfo.Info) int {
 			fmt.Fprintln(stderr, "help does not accept arguments")
 			return 2
 		}
-		if _, err := io.WriteString(stdout, usage); err != nil {
+		if _, err := io.WriteString(humanOutput, renderHelp(styles)); err != nil {
 			fmt.Fprintf(stderr, "write help: %v\n", err)
 			return 1
 		}
 	case "version":
-		return runVersion(args[1:], stdout, stderr, info)
+		return runVersion(args[1:], stdout, stderr, info, *color)
+	case "tui":
+		return runTUI(ctx, args[1:], stdin, stdout, stderr, info, *color)
 	default:
-		fmt.Fprintf(stderr, "unknown command %q\n\n%s", args[0], usage)
+		fmt.Fprintf(humanError, "unknown command %q\n\n%s", args[0], renderHelp(newPalette(colorEnabled(*color, stderr))))
 		return 2
-	}
-	return 0
-}
-
-// versionOutput is the CLI's JSON wire contract, independent of internal records.
-type versionOutput struct {
-	Version   string `json:"version"`
-	Revision  string `json:"revision"`
-	Modified  bool   `json:"modified"`
-	GoVersion string `json:"go_version"`
-	OS        string `json:"os"`
-	Arch      string `json:"arch"`
-}
-
-func runVersion(args []string, stdout, stderr io.Writer, info buildinfo.Info) int {
-	flags := flag.NewFlagSet("node version", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	asJSON := flags.Bool("json", false, "Print structured build metadata.")
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return 0
-		}
-		return 2
-	}
-	if flags.NArg() != 0 {
-		fmt.Fprintln(stderr, "version does not accept positional arguments")
-		return 2
-	}
-
-	var err error
-	if *asJSON {
-		output := versionOutput{
-			Version:   info.Version,
-			Revision:  info.Revision,
-			Modified:  info.Modified,
-			GoVersion: info.GoVersion,
-			OS:        info.OS,
-			Arch:      info.Arch,
-		}
-		err = json.NewEncoder(stdout).Encode(output)
-	} else {
-		_, err = fmt.Fprintf(stdout, "PapilioVPN Node %s (%s %s/%s)\n",
-			info.Version, info.GoVersion, info.OS, info.Arch)
-	}
-	if err != nil {
-		fmt.Fprintf(stderr, "write version: %v\n", err)
-		return 1
 	}
 	return 0
 }
