@@ -296,10 +296,10 @@ func TestAccountNativeBoundsTypesAndPrivacy(t *testing.T) {
 }
 
 func TestAccountInspectionDoesNotReadPerUser(t *testing.T) {
-	for _, size := range []int{0, 1, 16, 100} {
+	for _, size := range []int{0, 1, 16, 100, 1000, 10000} {
 		t.Run(fmt.Sprint(size), func(t *testing.T) {
 			a, s, c, account := accountFixture(t, users.Trojan)
-			a.options.MaxUsers = 101
+			a.options.MaxUsers = size + 1
 			c.count = int64(size)
 			for i := range size {
 				c.response = append(c.response, &protocol.User{Email: fmt.Sprint(i), Account: serial.ToTypedMessage(&trojan.Account{Password: fmt.Sprint(i)})})

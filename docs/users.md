@@ -153,8 +153,10 @@ and writes, in addition to the adapter's inspection/RPC deadlines.
 
 Inspection makes three RPCs regardless of user count. A changed create/remove
 adds one direct `AlterInbound`; replacement adds remove then add. An unchanged
-request sends no mutation. There is no per-user RPC, list-and-filter single read,
-native bulk claim or hidden rollback. Inspection scans native credentials once;
+request sends no mutation. Metadata Get remains a native email-selected read;
+mutation inspection still fetches the complete bounded account collection to
+detect credential aliases. There is no per-user RPC, native bulk claim or hidden
+rollback. Inspection scans native credentials once;
 only the selected current record and desired account receive revision tokens.
 Invalid native binding/family or Shadowsocks2022 key-size context fails after the binding
 read, before fetching users. A mismatch between native count and fetched membership
@@ -323,3 +325,8 @@ See [observation benchmarks](../CONTRIBUTING.md#user-observation-checks) and
 control operations against pinned native engines, not forwarding throughput or
 comparative performance. Whole-response inspection is O(users + inbounds);
 request counts remain bounded independently of user count.
+The serial Trojan benchmark exercises 1, 100, 1,000 and 10,000 accounts with real
+unchanged/replacement outcomes and allocation reporting. It does not establish
+100,000-user capacity or concurrent management throughput. Queries and mutations
+share the instance's exclusive access; overlapping reads can return `ErrBusy`.
+Account limits and fixed RPC counts alone do not establish a performance SLA.

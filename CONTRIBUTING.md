@@ -174,10 +174,37 @@ PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -run '^$' -bench '^Bench
 ```
 
 This measures unchanged Create and actual conditional Replace on a ready Trojan
-inbound with 1 and 100 accounts. Inspection makes three bounded native reads;
-unchanged input sends no write, replacement sends remove then add. Account setup
-and engine startup are excluded. This is control-path cost, not throughput or
-comparative performance; retain equivalent conditions when comparing results.
+inbound with 1, 100, 1,000 and 10,000 accounts. One initial native configuration
+populates each workload in O(N) fixture work; setup does not call Create N times.
+The fixture verifies native count, revision and final applied level/population.
+Its explicit limits are a 1 MiB source, 16 MiB native replies, MaxUsers equal to
+the workload and a three-second command deadline. These are benchmark settings,
+not production defaults or capacity guarantees.
+
+Inspection makes three bounded native reads; unchanged input sends no write,
+replacement sends remove then add. Startup and account setup are excluded from
+timed loops. Constant RPC count still includes O(N) account decoding, credential
+checks and response memory; repeated single commands are not native bulk.
+Preloaded accounts also appear in native inbound settings. This workload differs
+from an initially empty inbound populated by live Add calls; their timings are
+not directly interchangeable.
+This measures serial control-path cost, not forwarding throughput, concurrent
+read capacity, latency percentiles or comparative performance. Retain equivalent
+conditions when comparing results.
+
+Profile the same 10,000-user replay boundary with Go's native tools:
+
+```bash
+profile_root=$(mktemp -d) || exit 1
+PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test ./tests/integration -run '^$' -bench '^BenchmarkAccountNativeMutations/users-10000$/unchanged$' -benchtime=100x -benchmem -o "$profile_root/integration.test" -cpuprofile "$profile_root/cpu.out" -memprofile "$profile_root/heap.out"
+go tool pprof -top "$profile_root/integration.test" "$profile_root/cpu.out"
+go tool pprof -top -alloc_space "$profile_root/integration.test" "$profile_root/heap.out"
+```
+
+Profiles include fixture setup and Node-side native client work; they do not
+capture the Xray child's CPU/heap. Profiling affects timing. Keep generated
+files outside Git and remove the owned temporary directory after inspection.
+
 For legacy Shadowsocks, measure the same unchanged Create boundary with native
 key derivation and a ready mixed-method inbound at 1 and 100 accounts:
 

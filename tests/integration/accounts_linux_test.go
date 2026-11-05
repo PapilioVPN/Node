@@ -3,7 +3,6 @@ package integration_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -156,46 +155,5 @@ func TestAccountNativeInspectionLimitsDoNotMutate(t *testing.T) {
 	}
 	if _, err := commands.Remove(t.Context(), target, account.Email, created.Revision); err != nil {
 		t.Fatal("removal blocked at capacity", err)
-	}
-}
-
-func BenchmarkAccountNativeMutations(b *testing.B) {
-	for _, size := range []int{1, 100} {
-		b.Run(fmt.Sprintf("users-%d", size), func(b *testing.B) {
-			server, _ := startAccountServer(b, users.Trojan)
-			commands := nativeAccountCommands(b, server)
-			target := users.Target{Generation: server.Status().Generation, Inbound: "accounts"}
-			account := accountInput(users.Trojan, "measured", 1)
-			created, err := commands.Create(b.Context(), target, account)
-			if err != nil {
-				b.Fatal(err)
-			}
-			revision := created.Revision
-			for i := 1; i < size; i++ {
-				filler := accountInput(users.Trojan, fmt.Sprintf("filler-%d", i), byte(i+1))
-				if _, err := commands.Create(b.Context(), target, filler); err != nil {
-					b.Fatal(err)
-				}
-			}
-			b.Run("unchanged", func(b *testing.B) {
-				b.ReportAllocs()
-				for b.Loop() {
-					if r, err := commands.Create(b.Context(), target, account); err != nil || r.Outcome != users.OutcomeUnchanged {
-						b.Fatal("unchanged account", err)
-					}
-				}
-			})
-			b.Run("replace", func(b *testing.B) {
-				b.ReportAllocs()
-				for b.Loop() {
-					account.Level++
-					result, err := commands.Replace(b.Context(), target, revision, account)
-					if err != nil || !result.PreviousRemoved || result.Outcome != users.OutcomeApplied {
-						b.Fatal("replacement effects", err)
-					}
-					revision = result.Revision
-				}
-			})
-		})
 	}
 }
