@@ -37,12 +37,14 @@ func accountInput(family users.Protocol, email string, index byte) users.Account
 		a.ID = [16]byte{}
 		a.Password = fmt.Sprintf("isolated-test-password-%d", index)
 	}
+	if family == users.Shadowsocks {
+		a.ID, a.Password, a.Method = [16]byte{}, fmt.Sprintf("isolated-test-password-%d", index), users.MethodAES128GCM
+	}
 	return a
 }
 
-// reserve-close selects an ephemeral loopback port for the native listener.
-// A competing bind fails startup rather than falling back to another service.
-func startAccountServer(t testing.TB, family users.Protocol) (*instance.Service, int) {
+// A competing bind after reserve-close fails native startup, without fallback.
+func accountServerPort(t testing.TB) int {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -52,7 +54,13 @@ func startAccountServer(t testing.TB, family users.Protocol) (*instance.Service,
 	if err := listener.Close(); err != nil {
 		t.Fatal(err)
 	}
-	kind := map[users.Protocol]string{users.VMess: "vmess", users.VLESS: "vless", users.Trojan: "trojan"}[family]
+	return port
+}
+
+func startAccountServer(t testing.TB, family users.Protocol) (*instance.Service, int) {
+	t.Helper()
+	port := accountServerPort(t)
+	kind := map[users.Protocol]string{users.VMess: "vmess", users.VLESS: "vless", users.Trojan: "trojan", users.Shadowsocks: "shadowsocks"}[family]
 	settings := `{"clients":[]}`
 	if family == users.VLESS {
 		settings = `{"decryption":"none","clients":[]}`
@@ -91,6 +99,9 @@ func startAccountClients(t testing.TB, port int, accounts []users.Account) []str
 		case users.Trojan:
 			kind = "trojan"
 			settings = fmt.Sprintf(`{"servers":[{"address":"127.0.0.1","port":%d,"password":%q}]}`, port, account.Password)
+		case users.Shadowsocks:
+			kind = "shadowsocks"
+			settings = fmt.Sprintf(`{"servers":[{"address":"127.0.0.1","port":%d,"method":%q,"password":%q}]}`, port, account.Method, account.Password)
 		}
 		outbounds = append(outbounds, fmt.Sprintf(`{"tag":%q,"protocol":%q,"settings":%s,"mux":{"enabled":false}}`, tag, kind, settings))
 		routes = append(routes, fmt.Sprintf(`{"type":"field","inboundTag":[%q],"outboundTag":%q}`, tag, tag))

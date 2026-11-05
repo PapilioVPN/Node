@@ -26,6 +26,12 @@ func encodeAccount(account users.Account) (*protocol.User, error) {
 		credential = &vless.Account{Id: id.String(), Flow: string(account.Flow)}
 	case users.Trojan:
 		credential = &trojan.Account{Password: account.Password}
+	case users.Shadowsocks:
+		var err error
+		credential, err = encodeShadowsocksAccount(account)
+		if err != nil {
+			return nil, err
+		}
 	default:
 		return nil, users.ErrUnsupported
 	}
@@ -73,6 +79,8 @@ func accountKey(user *protocol.User, family users.Protocol) (string, bool, error
 		}
 		key := sha256.Sum224([]byte(account.Password))
 		return string(key[:]), true, nil
+	case users.Shadowsocks:
+		return shadowsocksAccountKey(user)
 	default:
 		return "", false, users.ErrUnsupported
 	}

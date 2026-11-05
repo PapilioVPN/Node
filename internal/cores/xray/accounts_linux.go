@@ -101,7 +101,7 @@ func selectAccount(records []nativeAccount, email, desiredKey string, family use
 	var current *nativeAccount
 	identity := strings.ToLower(email)
 	for i := range records {
-		if strings.ToLower(records[i].user.Email) == identity {
+		if strings.ToLower(records[i].user.Email) == identity || family == users.Shadowsocks && strings.EqualFold(records[i].user.Email, email) {
 			if current != nil {
 				return nil, users.ErrConflict
 			}

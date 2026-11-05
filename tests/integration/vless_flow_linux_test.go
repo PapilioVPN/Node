@@ -1,13 +1,7 @@
 package integration_test
 
 import (
-	"crypto/tls"
 	"errors"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"sync/atomic"
 	"testing"
 
 	"github.com/papilio-platform/Node/internal/instance"
@@ -30,7 +24,7 @@ func TestVLESSFlowControlsVerifiedTLS13Traffic(t *testing.T) {
 	wrongName, untrusted := client(vision), client(vision)
 	wrongName.name, untrusted.root = "wrong.test", ""
 	sockets := startVLESSClients(t, port, []vlessTestClient{client(plain), client(vision), wrongName, untrusted, client(seed)})
-	request := secureVLESSProbe(t, material, sockets)
+	request := secureAccountProbe(t, material, sockets)
 	request(4, true)
 	created, err := commands.Create(t.Context(), target, plain)
 	if err != nil {
@@ -97,7 +91,7 @@ func TestVLESSVisionRequiresTLS13(t *testing.T) {
 		{account: plain, name: "node.test", root: material.root, version: "1.2"},
 		{account: vision, name: "node.test", root: material.root, version: "1.2"},
 	})
-	request := secureVLESSProbe(t, material, sockets)
+	request := secureAccountProbe(t, material, sockets)
 	request(0, true)
 	request(1, false)
 }
@@ -114,53 +108,7 @@ func TestVLESSVisionRejectsPlainTransport(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	request := secureVLESSProbe(t, nativeTLSCertificates(t), startAccountClients(t, port, []users.Account{plain, vision}))
+	request := secureAccountProbe(t, nativeTLSCertificates(t), startAccountClients(t, port, []users.Account{plain, vision}))
 	request(0, true)
 	request(1, false)
-}
-
-// The inner HTTPS exchange verifies its test CA. The target observes receipts;
-// a proxy error response is never acceptance.
-func secureVLESSProbe(t *testing.T, material nativeTestTLS, sockets []string) func(int, bool) {
-	t.Helper()
-	payload := strings.Repeat("isolated-vision-payload\n", 8192)
-	var received atomic.Int64
-	destination := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		received.Add(1)
-		if r.TLS == nil || r.TLS.Version != tls.VersionTLS13 {
-			http.Error(w, "inner TLS1.3 required", http.StatusBadRequest)
-			return
-		}
-		body, err := io.ReadAll(io.LimitReader(r.Body, int64(len(payload)+1)))
-		if err != nil || string(body) != payload {
-			http.Error(w, "payload mismatch", http.StatusBadRequest)
-			return
-		}
-		w.Write(body)
-	}))
-	destination.TLS = &tls.Config{Certificates: []tls.Certificate{material.certificate}, MinVersion: tls.VersionTLS13, MaxVersion: tls.VersionTLS13}
-	destination.StartTLS()
-	t.Cleanup(destination.Close)
-	clients := make([]*http.Client, len(sockets))
-	for i, socket := range sockets {
-		clients[i] = accountHTTPClient(t, socket)
-		clients[i].Transport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: material.roots, MinVersion: tls.VersionTLS13, MaxVersion: tls.VersionTLS13}
-	}
-	return func(index int, allowed bool) {
-		t.Helper()
-		before := received.Load()
-		response, err := clients[index].Post(destination.URL, "application/octet-stream", strings.NewReader(payload))
-		var body []byte
-		if err == nil {
-			body, err = io.ReadAll(io.LimitReader(response.Body, int64(len(payload)+1)))
-			response.Body.Close()
-		}
-		if allowed {
-			if err != nil || string(body) != payload || received.Load() != before+1 {
-				t.Fatalf("verified secure traffic denied: client%d: %v", index, err)
-			}
-		} else if received.Load() != before || string(body) == payload {
-			t.Fatalf("rejected secure client%d reached actual target", index)
-		}
-	}
 }

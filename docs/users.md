@@ -4,8 +4,9 @@
 creates, replaces and removes single accounts on one managed engine binding.
 The tested adapter uses Xray **v26.10.31** (`a4a3dff`) on Linux amd64/arm64 and
 its private `HandlerService`. Native client/server tests cover VMess AEAD,
-ordinary VLESS and Trojan over isolated local TCP, plus VLESS Vision over verified
-TLS 1.3 with an inner HTTPS payload. These are specific
+ordinary VLESS and Trojan over isolated local TCP, VLESS Vision over verified
+TLS 1.3, and the four legacy Shadowsocks AEAD methods below. Secure acceptance
+round-trips an inner HTTPS payload. These are specific
 account/traffic checks, not complete protocol/transport support. No user
 management CLI command or external management endpoint is provided yet.
 
@@ -96,9 +97,11 @@ Neither constructor performs I/O. The adapter reuses the session's existing
 connection and creates no retry worker, subprocess or user cache.
 
 `Account` is sensitive desired input: valid UTF-8, nonempty **1..256-byte** `Email`, native
-`uint32` `Level`, and a `Protocol` selecting VMess/VLESS/Trojan. VMess/VLESS use a
-**16-byte** `ID` and no password; Trojan uses a valid UTF-8 **1..4096-byte** `Password` and no
-ID. VLESS also accepts `FlowNone` (empty) or `FlowVision`
+`uint32` `Level`, and a `Protocol` selecting VMess/VLESS/Trojan/legacy Shadowsocks.
+VMess/VLESS use a **16-byte** `ID` and no password; Trojan and legacy Shadowsocks
+use a valid UTF-8 **1..4096-byte** `Password` and no ID. Legacy Shadowsocks requires
+an explicit `Method`; other protocols reject a nonempty method.
+VLESS also accepts `FlowNone` (empty) or `FlowVision`
 (`xtls-rprx-vision`). Nonempty flow on other protocols, unknown flows and the
 client-only `-udp443` suffix are invalid before native access. VLESS
 encryption/reverse/test settings are not part of this input; replacing an existing
@@ -114,7 +117,7 @@ never be logged or copied into read results.
 Read `User.Revision` with Get/List, or retain `MutationResult.Revision` after a
 successful create/replace/no-op. Replace/Remove require a nonempty token of at
 most 128 bytes. Revisions use HMAC-SHA256 over the native user representation with
-a random private key owned by that session. They change with credentials/level/flow
+a random private key owned by that session. They change with credentials/level/flow/method
 and session replacement, without exposing a password-checking hash. Treat tokens
 as sensitive metadata, not authorization. They are content fences, not durable
 sequence numbers: identical content recreated within the same execution has the
@@ -175,6 +178,44 @@ target. Ordinary VLESS succeeds under the corresponding transport controls.
 Certificates are ephemeral test data; no system trust or host routing is changed.
 These checks establish behavior, not a measured Vision splice/throughput claim.
 
+### Legacy Shadowsocks AEAD
+
+Use `Protocol: Shadowsocks` with one of these canonical method values:
+
+| Method | Typed value |
+| --- | --- |
+| `aes-128-gcm` | `MethodAES128GCM` |
+| `aes-256-gcm` | `MethodAES256GCM` |
+| `chacha20-poly1305` | `MethodChaCha20Poly1305` |
+| `xchacha20-poly1305` | `MethodXChaCha20Poly1305` |
+
+The typed input does not normalize aliases or choose a default cipher. Unknown,
+empty, `none` and Shadowsocks2022 methods are invalid here. The pinned native
+engine rejects legacy `none` configuration too. Legacy account commands target
+an actual native legacy Shadowsocks inbound; another inbound type fails explicitly.
+They do not turn a 2022 or relay inbound into a legacy server.
+
+The native validator tries each account's cipher and derived key. Collision
+checks use the official SDK's `Account.AsAccount` / `MemoryAccount.Key`, scoped
+by cipher; no private KDF implementation is copied. A duplicate authentication
+key under the same cipher conflicts. Equal passwords under different ciphers
+can coexist and are tested with actual independent traffic/removal. Password or
+method changes both require the observed revision and use remove then add.
+
+Legacy identity lookup and removal use native Unicode `EqualFold`; a lookup may
+return a different spelling such as `s` for `ſ`. Ambiguous equivalent identities
+fail before mutation. Get/Count/List read native metadata and preserve the returned
+identity. Account payloads stay private, and unsupported native fields are protected
+from replacement. Inspection retains the same byte/item/deadline bounds and three
+RPCs at 0, 1, 16 and 100 users, without per-user network requests.
+
+Native acceptance verifies every method with real client/server processes and
+exact inner HTTPS request/reply bytes. It covers empty-inbound denial, create,
+no-op replay, method-only and password rotation, revoked/new authentication,
+sibling isolation, stale removal, deletion and restart discarding live users.
+An established AES-128-GCM stream remains usable after account removal. This
+does not establish UDP or every transport variant as tested support.
+
 ### Effects, interruption and recovery
 
 `MutationResult.Outcome` reports this request's acknowledged effects:
@@ -215,6 +256,7 @@ revision fencing, error privacy, cancellation/deadlines, Stop and partial effect
 Native acceptance composes real client/server processes for VMess/VLESS/Trojan:
 create, equal replay, credential replacement, old/new denied/accepted traffic,
 sibling isolation, stale revision, deletion, stream preservation and restart.
+Legacy Shadowsocks adds the method-specific checks above under the same owners.
 Loopback targets are explicitly allowed only in isolated native test settings;
 the pinned engine otherwise blocks private targets for these authenticated inbounds.
 

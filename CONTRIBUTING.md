@@ -164,6 +164,10 @@ create/replace/remove, accepted/denied traffic, sibling isolation, stale revisio
 rejection, live-edit loss after restart and established-stream preservation.
 An acknowledgement fault injector runs actual native writes before returning an
 error, then verifies explicit replay/recovery against real engine state.
+Legacy Shadowsocks acceptance adds four AEAD methods, method/password rotation,
+native Unicode identity, mixed-cipher users and actual accepted/denied HTTPS
+payloads. VLESS Vision acceptance uses verified outer TLS 1.3 and rejects wrong
+flow, name, trust and incompatible transport versions.
 
 ```bash
 PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -run '^$' -bench '^BenchmarkAccountNativeMutations$' -benchtime=100x -benchmem -count=3 ./tests/integration
@@ -174,6 +178,15 @@ inbound with 1 and 100 accounts. Inspection makes three bounded native reads;
 unchanged input sends no write, replacement sends remove then add. Account setup
 and engine startup are excluded. This is control-path cost, not throughput or
 comparative performance; retain equivalent conditions when comparing results.
+For legacy Shadowsocks, measure the same unchanged Create boundary with native
+key derivation and a ready mixed-method inbound at 1 and 100 accounts:
+
+```bash
+PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -run '^$' -bench '^BenchmarkShadowsocksNativeInspection$' -benchtime=100x -benchmem -count=3 ./tests/integration
+```
+
+This excludes account setup and engine startup and retains three bounded native
+reads. It measures Node/control cost, without claiming forwarding throughput.
 The native credential-mapping fuzz target also runs with the same bounds in CI:
 
 ```bash

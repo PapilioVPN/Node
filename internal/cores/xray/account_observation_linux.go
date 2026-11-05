@@ -51,6 +51,8 @@ func (a *UserAccounts) observeAccounts(ctx context.Context, session instance.ISe
 			family = users.VLESS
 		case "xray.proxy.trojan.ServerConfig":
 			family = users.Trojan
+		case "xray.proxy.shadowsocks.ServerConfig":
+			family = users.Shadowsocks
 		default:
 			return 0, nil, users.ErrUnsupported
 		}

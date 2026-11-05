@@ -14,6 +14,7 @@ import (
 	"github.com/xtls/xray-core/common/protocol"
 	"github.com/xtls/xray-core/common/serial"
 	"github.com/xtls/xray-core/core"
+	"github.com/xtls/xray-core/proxy/shadowsocks"
 	"github.com/xtls/xray-core/proxy/trojan"
 	"github.com/xtls/xray-core/proxy/vless"
 	"github.com/xtls/xray-core/proxy/vmess"
@@ -125,15 +126,21 @@ func accountFixture(t *testing.T, family users.Protocol) (*UserAccounts, *Sessio
 	if err != nil {
 		t.Fatal(err)
 	}
-	kind := map[users.Protocol]string{users.VMess: "vmess", users.VLESS: "vless", users.Trojan: "trojan"}[family]
+	kind := map[users.Protocol]string{users.VMess: "vmess", users.VLESS: "vless", users.Trojan: "trojan", users.Shadowsocks: "shadowsocks"}[family]
 	c := &accountClient{inbounds: []*core.InboundHandlerConfig{{Tag: "owned", ProxySettings: &serial.TypedMessage{Type: "xray.proxy." + kind + ".inbound.Config"}}}}
 	if family == users.Trojan {
 		c.inbounds[0].ProxySettings.Type = "xray.proxy.trojan.ServerConfig"
+	}
+	if family == users.Shadowsocks {
+		c.inbounds[0].ProxySettings.Type = "xray.proxy.shadowsocks.ServerConfig"
 	}
 	account := users.Account{Email: "Alice", Level: 2, Protocol: family, ID: [16]byte{15: 1}}
 	if family == users.Trojan {
 		account.ID = [16]byte{}
 		account.Password = "isolated-test-password"
+	}
+	if family == users.Shadowsocks {
+		account.ID, account.Password, account.Method = [16]byte{}, "isolated-test-password", users.MethodAES128GCM
 	}
 	return a, &Session{api: &nativeAPI{handlers: c}}, c, account
 }
@@ -296,12 +303,15 @@ func FuzzAccountCredentialKey(f *testing.F) {
 	f.Add(byte(0), serial.ToTypedMessage(&vmess.Account{Id: "00000000-0000-4000-8000-000000000001"}).Value)
 	f.Add(byte(1), serial.ToTypedMessage(&vless.Account{Id: "00000000-0000-4000-8000-000000000001"}).Value)
 	f.Add(byte(2), serial.ToTypedMessage(&trojan.Account{Password: "isolated-test-password"}).Value)
+	for _, cipher := range []shadowsocks.CipherType{shadowsocks.CipherType_AES_128_GCM, shadowsocks.CipherType_AES_256_GCM, shadowsocks.CipherType_CHACHA20_POLY1305, shadowsocks.CipherType_XCHACHA20_POLY1305} {
+		f.Add(byte(3), serial.ToTypedMessage(&shadowsocks.Account{CipherType: cipher, Password: "isolated-test-password"}).Value)
+	}
 	f.Add(byte(1), []byte{0xff})
 	f.Fuzz(func(t *testing.T, selector byte, data []byte) {
 		if len(data) > 65536 {
 			return
 		}
-		family := users.Protocol(selector%3 + 1)
+		family := users.Protocol(selector%4 + 1)
 		var message proto.Message
 		switch family {
 		case users.VMess:
@@ -310,12 +320,20 @@ func FuzzAccountCredentialKey(f *testing.F) {
 			message = &vless.Account{}
 		case users.Trojan:
 			message = &trojan.Account{}
+		case users.Shadowsocks:
+			message = &shadowsocks.Account{}
 		}
 		key, _, err := accountKey(&protocol.User{Account: &serial.TypedMessage{Type: serial.GetMessageType(message), Value: data}}, family)
 		if err == nil {
 			want := 16
 			if family == users.Trojan {
 				want = 28
+			}
+			if family == users.Shadowsocks {
+				want = 33
+				if len(key) > 0 && key[0] == byte(shadowsocks.CipherType_AES_128_GCM) {
+					want = 17
+				}
 			}
 			if len(key) != want {
 				t.Fatalf("invalid native authentication key size: %d", len(key))

@@ -16,9 +16,10 @@ const (
 	VMess Protocol = iota + 1
 	VLESS
 	Trojan
+	Shadowsocks
 )
 
-// MaxPasswordBytes bounds a Trojan credential in bytes.
+// MaxPasswordBytes bounds a Trojan or legacy Shadowsocks credential in bytes.
 const MaxPasswordBytes = 4096
 
 // VLESSFlow selects inbound account behavior, independently of stream security.
@@ -33,7 +34,8 @@ const (
 var ErrConflict = errors.New("user account conflict")
 
 // Account is sensitive desired account input. ID belongs to VMess/VLESS;
-// Password belongs to Trojan; Flow belongs to VLESS and defaults to no flow.
+// Password belongs to Trojan/Shadowsocks; Flow belongs to VLESS. Method belongs
+// to legacy Shadowsocks; fields not owned by the selected protocol stay empty.
 // Do not log this value or expose it in read results.
 type Account struct {
 	Email    string
@@ -42,6 +44,7 @@ type Account struct {
 	ID       [16]byte
 	Password string
 	Flow     VLESSFlow
+	Method   ShadowsocksMethod
 }
 
 // AccountCheck reports authoritative native identity and full account equality.
@@ -113,6 +116,9 @@ func validAccount(account Account) bool {
 	if len(account.Email) == 0 || len(account.Email) > MaxIdentifierBytes || !utf8.ValidString(account.Email) || !utf8.ValidString(account.Password) {
 		return false
 	}
+	if account.Protocol != Shadowsocks && account.Method != "" {
+		return false
+	}
 	switch account.Protocol {
 	case VMess:
 		return account.Password == "" && account.Flow == FlowNone
@@ -120,6 +126,8 @@ func validAccount(account Account) bool {
 		return account.Password == "" && (account.Flow == FlowNone || account.Flow == FlowVision)
 	case Trojan:
 		return account.ID == [16]byte{} && account.Flow == FlowNone && len(account.Password) > 0 && len(account.Password) <= MaxPasswordBytes
+	case Shadowsocks:
+		return account.ID == [16]byte{} && account.Flow == FlowNone && len(account.Password) > 0 && len(account.Password) <= MaxPasswordBytes && validShadowsocksMethod(account.Method)
 	default:
 		return false
 	}

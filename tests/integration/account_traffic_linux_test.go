@@ -123,7 +123,7 @@ func TestAccountMutationsControlRealAuthenticatedTraffic(t *testing.T) {
 }
 
 func TestAccountRemovalDoesNotTerminateEstablishedStream(t *testing.T) {
-	for _, family := range []users.Protocol{users.VMess, users.VLESS, users.Trojan} {
+	for _, family := range []users.Protocol{users.VMess, users.VLESS, users.Trojan, users.Shadowsocks} {
 		t.Run(fmt.Sprint(family), func(t *testing.T) {
 			server, port := startAccountServer(t, family)
 			commands := nativeAccountCommands(t, server)
