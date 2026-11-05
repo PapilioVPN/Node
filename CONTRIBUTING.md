@@ -157,6 +157,29 @@ list uses count plus one native collection response, without per-user reads.
 Measurements exclude initial startup and forwarding throughput; record Go/engine
 versions, host and concurrent load before comparing results.
 
+## Account mutation checks
+
+The native suite uses isolated VMess/VLESS/Trojan client/server pairs to verify
+create/replace/remove, accepted/denied traffic, sibling isolation, stale revision
+rejection, live-edit loss after restart and established-stream preservation.
+An acknowledgement fault injector runs actual native writes before returning an
+error, then verifies explicit replay/recovery against real engine state.
+
+```bash
+PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -run '^$' -bench '^BenchmarkAccountNativeMutations$' -benchtime=100x -benchmem -count=3 ./tests/integration
+```
+
+This measures unchanged Create and actual conditional Replace on a ready Trojan
+inbound with 1 and 100 accounts. Inspection makes three bounded native reads;
+unchanged input sends no write, replacement sends remove then add. Account setup
+and engine startup are excluded. This is control-path cost, not throughput or
+comparative performance; retain equivalent conditions when comparing results.
+The native credential-mapping fuzz target also runs with the same bounds in CI:
+
+```bash
+go test ./internal/cores/xray -run='^$' -fuzz='^FuzzAccountCredentialKey$' -fuzztime=5s -parallel=2
+```
+
 ## Reporting a problem
 
 Include `node version --json`, the command or operation, expected/actual results
@@ -176,7 +199,7 @@ internal/instance/        Engine-independent lifecycle policy and observations
 internal/terminal/theme/  Shared terminal styles, with no environment or I/O
 internal/tui/             Interactive session, navigation and views
 internal/tui/pages/       Pure information and command-reference content
-internal/users/           Execution-scoped live user metadata queries
+internal/users/           Execution-scoped user queries and conditional commands
 tests/integration/        Real cross-package and OS integration tests
 ```
 
@@ -224,3 +247,11 @@ its release. `users/service.go` owns query contracts, input/admission bounds and
 composition; `queries.go` owns focused reads. `xray/users_linux.go` owns generated
 native query construction, byte/time bounds, metadata mapping and native errors.
 No user/protocol methods were added to lifecycle `ISession`.
+
+`users/accounts.go` owns single-account inputs, effects and consumed inspector/
+writer contracts; `commands.go` coordinates conditional Create/Replace/Remove
+through the existing instance access. Xray's `account_encoding.go` owns pure
+native mapping, authentication keys and keyed revisions; `account_observation_linux.go`
+executes bounded native inspection, `accounts_linux.go` checks its focused facts,
+and `account_mutation_linux.go` executes individual native writes. Credentials
+stay at that adapter boundary; metadata revisions share the session's private key.

@@ -1,4 +1,4 @@
-// Package users owns execution-scoped live user metadata queries.
+// Package users owns execution-scoped user queries and conditional mutations.
 package users
 
 import (
@@ -15,14 +15,14 @@ const MaxListUsers = 100000
 const MaxIdentifierBytes = 256
 
 var (
-	// ErrInvalid rejects missing or oversized query identifiers and list bounds.
-	ErrInvalid = errors.New("invalid user query")
+	// ErrInvalid rejects invalid user inputs and resource bounds.
+	ErrInvalid = errors.New("invalid user input")
 	// ErrNotFound means the requested user does not exist on the selected inbound.
 	ErrNotFound = errors.New("user not found")
 	// ErrLimit means a complete native result exceeds the configured item/byte cap.
 	ErrLimit = errors.New("user observation exceeds its limit")
 	// ErrUnsupported means the execution lacks the requested user capability.
-	ErrUnsupported = errors.New("user observation is unsupported")
+	ErrUnsupported = errors.New("user operation is unsupported")
 )
 
 // Target identifies one inbound on a Service-local execution generation.
@@ -31,10 +31,14 @@ type Target struct {
 	Inbound    string
 }
 
-// User exposes native account identity/level metadata, never credentials.
+// AccountRevision fingerprints observed native account content within a session.
+type AccountRevision string
+
+// User exposes identity/level metadata and a conditional mutation token, never credentials.
 type User struct {
-	Email string
-	Level uint32
+	Email    string
+	Level    uint32
+	Revision AccountRevision
 }
 
 // IAccess pins a ready execution and joins Stop through the instance owner.

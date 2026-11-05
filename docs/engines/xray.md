@@ -5,8 +5,10 @@ The internal adapter validates configuration and owns an Xray **v26.10.31**
 checks on **Linux amd64 and arm64**, using checksum-pinned official release
 archives. The [instance service](../instances.md) owns application lifecycle
 policy. A private HTTP forwarding fixture verifies basic payload traversal across
-lifecycle cycles. User management, traffic-statistics operations and control
-endpoints are not provided yet; the fixture is not full protocol support evidence.
+lifecycle cycles. Internal [live user capabilities](../users.md) additionally
+verify conditional account mutations and real basic VMess/VLESS/Trojan traffic.
+Traffic-statistics operations and control endpoints are not exposed yet; these
+fixtures are not complete protocol/transport support evidence.
 
 The official native API client is pinned to the same source revision. Its module
 requires Go 1.27; Node builds use Go **1.27.3 or newer**.
@@ -112,10 +114,11 @@ wait; shutdown continues under the session owner. `Wait` joins actual exit, clie
 closure and owned-directory removal. Repeated stops join that same completion.
 The session must be stopped or its lifetime cancelled, then waited for.
 
-[Live user observations](../users.md) use this same session/client through the
+[Live user capabilities](../users.md) use this same session/client through the
 instance's execution access scope. Exact-user, count and bounded collection reads
-return metadata only; native account writes and full protocol coverage are not
-established by these observations.
+return metadata and opaque account revisions. Focused account commands perform
+conditional native create/replace/remove without restarting the engine. Their
+[effects and limits](../users.md#single-account-mutations) remain explicit.
 
 An abnormal exit, forced kill or cleanup failure remains an inspectable
 `ProcessError`; its bounded sensitive diagnostics are excluded from default error

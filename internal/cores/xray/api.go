@@ -2,6 +2,7 @@ package xray
 
 import (
 	"context"
+	"crypto/rand"
 	"net/url"
 
 	proxyman "github.com/xtls/xray-core/app/proxyman/command"
@@ -11,12 +12,17 @@ import (
 )
 
 type nativeAPI struct {
-	connection *grpc.ClientConn
-	stats      command.StatsServiceClient
-	handlers   proxyman.HandlerServiceClient
+	connection  *grpc.ClientConn
+	stats       command.StatsServiceClient
+	handlers    proxyman.HandlerServiceClient
+	revisionKey [32]byte
 }
 
 func newNativeAPI(socket string) (*nativeAPI, error) {
+	var revisionKey [32]byte
+	if _, err := rand.Read(revisionKey[:]); err != nil {
+		return nil, err
+	}
 	target := (&url.URL{Scheme: "unix", Path: socket}).String()
 	connection, err := grpc.NewClient(target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -25,7 +31,12 @@ func newNativeAPI(socket string) (*nativeAPI, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &nativeAPI{connection: connection, stats: command.NewStatsServiceClient(connection), handlers: proxyman.NewHandlerServiceClient(connection)}, nil
+	return &nativeAPI{
+		connection:  connection,
+		stats:       command.NewStatsServiceClient(connection),
+		handlers:    proxyman.NewHandlerServiceClient(connection),
+		revisionKey: revisionKey,
+	}, nil
 }
 
 func (a *nativeAPI) probe(ctx context.Context) error {

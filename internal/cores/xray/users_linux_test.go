@@ -142,3 +142,26 @@ func TestNativeUserDeadlineAndUnknownCount(t *testing.T) {
 		}
 	})
 }
+
+func TestUserRevisionChangesWithNativeContentAndSessionKey(t *testing.T) {
+	r, s, c := userFixture(t)
+	c.response = c.response[:1]
+	first, err := r.Get(t.Context(), s, "in", "b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	same, err := r.Get(t.Context(), s, "in", "b")
+	if err != nil || first.Revision == "" || same.Revision != first.Revision {
+		t.Fatal("unchanged observation lost revision", err)
+	}
+	c.response[0].Account.Value = []byte("replacement-private-password")
+	changed, err := r.Get(t.Context(), s, "in", "b")
+	if err != nil || changed.Revision == first.Revision {
+		t.Fatal("credential change reused revision", err)
+	}
+	s.api.revisionKey[0] = 1
+	isolated, err := r.Get(t.Context(), s, "in", "b")
+	if err != nil || isolated.Revision == changed.Revision {
+		t.Fatal("revision crossed session key", err)
+	}
+}

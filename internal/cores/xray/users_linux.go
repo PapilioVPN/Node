@@ -34,13 +34,13 @@ func (r *UserReader) Get(ctx context.Context, session instance.ISession, inbound
 	if email == "" {
 		return users.User{}, users.ErrInvalid
 	}
-	client, err := userClientFor(session)
+	api, err := userAPIFor(session)
 	if err != nil {
 		return users.User{}, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
-	response, err := client.GetInboundUsers(ctx, &command.GetInboundUserRequest{Tag: inbound, Email: email}, grpc.MaxCallRecvMsgSize(r.replyBytes))
+	response, err := api.handlers.GetInboundUsers(ctx, &command.GetInboundUserRequest{Tag: inbound, Email: email}, grpc.MaxCallRecvMsgSize(r.replyBytes))
 	if err != nil {
 		return users.User{}, userQueryError(ctx, err)
 	}
@@ -54,22 +54,26 @@ func (r *UserReader) Get(ctx context.Context, session instance.ISession, inbound
 		return users.User{}, errors.New("invalid Xray single-user response")
 	}
 	u := response.Users[0]
-	return users.User{Email: u.Email, Level: u.Level}, nil
+	revision, err := fingerprintAccount(api.revisionKey, u)
+	if err != nil {
+		return users.User{}, err
+	}
+	return users.User{Email: u.Email, Level: u.Level, Revision: revision}, nil
 }
 
 // Count uses native count rather than materializing account records.
 func (r *UserReader) Count(ctx context.Context, session instance.ISession, inbound string) (int64, error) {
-	client, err := userClientFor(session)
+	api, err := userAPIFor(session)
 	if err != nil {
 		return 0, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
-	return r.count(ctx, client, inbound)
+	return readUserCount(ctx, api.handlers, inbound, r.replyBytes)
 }
 
-func (r *UserReader) count(ctx context.Context, client command.HandlerServiceClient, inbound string) (int64, error) {
-	response, err := client.GetInboundUsersCount(ctx, &command.GetInboundUserRequest{Tag: inbound}, grpc.MaxCallRecvMsgSize(r.replyBytes))
+func readUserCount(ctx context.Context, client command.HandlerServiceClient, inbound string, replyBytes int) (int64, error) {
+	response, err := client.GetInboundUsersCount(ctx, &command.GetInboundUserRequest{Tag: inbound}, grpc.MaxCallRecvMsgSize(replyBytes))
 	if err != nil {
 		return 0, userQueryError(ctx, err)
 	}
@@ -85,20 +89,20 @@ func (r *UserReader) List(ctx context.Context, session instance.ISession, inboun
 	if limit < 1 || limit > users.MaxListUsers {
 		return nil, users.ErrInvalid
 	}
-	client, err := userClientFor(session)
+	api, err := userAPIFor(session)
 	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
-	count, err := r.count(ctx, client, inbound)
+	count, err := readUserCount(ctx, api.handlers, inbound, r.replyBytes)
 	if err != nil {
 		return nil, err
 	}
 	if count > int64(limit) {
 		return nil, users.ErrLimit
 	}
-	response, err := client.GetInboundUsers(ctx, &command.GetInboundUserRequest{Tag: inbound}, grpc.MaxCallRecvMsgSize(r.replyBytes))
+	response, err := api.handlers.GetInboundUsers(ctx, &command.GetInboundUserRequest{Tag: inbound}, grpc.MaxCallRecvMsgSize(r.replyBytes))
 	if err != nil {
 		return nil, userQueryError(ctx, err)
 	}
@@ -113,7 +117,11 @@ func (r *UserReader) List(ctx context.Context, session instance.ISession, inboun
 		if u == nil {
 			return nil, errors.New("invalid Xray user collection entry")
 		}
-		result = append(result, users.User{Email: u.Email, Level: u.Level})
+		revision, err := fingerprintAccount(api.revisionKey, u)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, users.User{Email: u.Email, Level: u.Level, Revision: revision})
 	}
 	slices.SortFunc(result, func(a, b users.User) int {
 		return cmp.Or(cmp.Compare(a.Email, b.Email), cmp.Compare(a.Level, b.Level))
@@ -121,12 +129,12 @@ func (r *UserReader) List(ctx context.Context, session instance.ISession, inboun
 	return result, nil
 }
 
-func userClientFor(session instance.ISession) (command.HandlerServiceClient, error) {
+func userAPIFor(session instance.ISession) (*nativeAPI, error) {
 	native, ok := session.(*Session)
 	if !ok || native == nil || native.api == nil || native.api.handlers == nil {
 		return nil, users.ErrUnsupported
 	}
-	return native.api.handlers, nil
+	return native.api, nil
 }
 
 // UserQueryError keeps potentially sensitive native text out of normal errors.
