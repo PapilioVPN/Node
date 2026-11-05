@@ -10,11 +10,17 @@ import (
 	"github.com/xtls/xray-core/common/protocol"
 	"github.com/xtls/xray-core/common/serial"
 	"github.com/xtls/xray-core/common/uuid"
+	ss2022 "github.com/xtls/xray-core/proxy/shadowsocks_2022"
 	"github.com/xtls/xray-core/proxy/trojan"
 	"github.com/xtls/xray-core/proxy/vless"
 	"github.com/xtls/xray-core/proxy/vmess"
 	"google.golang.org/protobuf/proto"
 )
+
+type accountBinding struct {
+	family   users.Protocol
+	keyBytes int
+}
 
 func encodeAccount(account users.Account) (*protocol.User, error) {
 	id := uuid.UUID(account.ID)
@@ -32,6 +38,8 @@ func encodeAccount(account users.Account) (*protocol.User, error) {
 		if err != nil {
 			return nil, err
 		}
+	case users.Shadowsocks2022:
+		credential = &ss2022.Account{Key: account.Key}
 	default:
 		return nil, users.ErrUnsupported
 	}
@@ -45,11 +53,11 @@ func encodeAccount(account users.Account) (*protocol.User, error) {
 
 // Keys follow native authentication indexes. The boolean permits replacement
 // only when the account's entire representation is supported by our input.
-func accountKey(user *protocol.User, family users.Protocol) (string, bool, error) {
+func accountKey(user *protocol.User, binding accountBinding) (string, bool, error) {
 	if user == nil || user.Account == nil {
 		return "", false, users.ErrUnsupported
 	}
-	switch family {
+	switch binding.family {
 	case users.VMess:
 		account := &vmess.Account{}
 		if user.Account.Type != serial.GetMessageType(account) || proto.Unmarshal(user.Account.Value, account) != nil {
@@ -81,6 +89,8 @@ func accountKey(user *protocol.User, family users.Protocol) (string, bool, error
 		return string(key[:]), true, nil
 	case users.Shadowsocks:
 		return shadowsocksAccountKey(user)
+	case users.Shadowsocks2022:
+		return shadowsocks2022AccountKey(user, binding.keyBytes)
 	default:
 		return "", false, users.ErrUnsupported
 	}

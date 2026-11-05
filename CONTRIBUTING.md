@@ -207,6 +207,20 @@ This benchmark includes native conversion, protobuf preparation, native validati
 and temporary-file cleanup. Allocations describe the Node process, not child
 engine memory/CPU. It does not measure readiness or forwarding throughput.
 
+Live Shadowsocks2022 checks cover AES128/256 PSKs/password conversion, conditional mutations,
+actual traffic, lost-acknowledgement replay, unindexed native membership and
+single-user ChaCha full-config key replacement. Reproduce the bounded input fuzz
+and ready-engine inspection cost with:
+
+```bash
+go test ./internal/users -run='^$' -fuzz='^FuzzShadowsocks2022Credentials$' -fuzztime=5s -parallel=2
+PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -run '^$' -bench '^BenchmarkSS2022NativeAccountInspection$' -benchtime=100x -benchmem -count=3 ./tests/integration
+```
+
+The inspection benchmark includes password preparation and three native reads
+on 1/100 users, excluding account setup/startup. Verify the returned credential
+and unchanged outcome; these are control costs, not forwarding throughput.
+
 ## Reporting a problem
 
 Include `node version --json`, the command or operation, expected/actual results

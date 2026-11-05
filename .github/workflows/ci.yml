@@ -74,6 +74,9 @@ jobs:
       - name: Fuzz managed Shadowsocks2022 preparation
         run: go test ./internal/cores/xray -run='^$' -fuzz='^FuzzManaged2022Preparation$' -fuzztime=5s -parallel=2
 
+      - name: Fuzz explicit Shadowsocks2022 credentials
+        run: go test ./internal/users -run='^$' -fuzz='^FuzzShadowsocks2022Credentials$' -fuzztime=5s -parallel=2
+
       - name: Build native executable
         run: go build -trimpath -o bin/node ./cmd/node
 

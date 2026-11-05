@@ -17,9 +17,10 @@ const (
 	VLESS
 	Trojan
 	Shadowsocks
+	Shadowsocks2022
 )
 
-// MaxPasswordBytes bounds a Trojan or legacy Shadowsocks credential in bytes.
+// MaxPasswordBytes bounds credential/password-conversion input in bytes.
 const MaxPasswordBytes = 4096
 
 // VLESSFlow selects inbound account behavior, independently of stream security.
@@ -34,8 +35,9 @@ const (
 var ErrConflict = errors.New("user account conflict")
 
 // Account is sensitive desired account input. ID belongs to VMess/VLESS;
-// Password belongs to Trojan/Shadowsocks; Flow belongs to VLESS. Method belongs
-// to legacy Shadowsocks; fields not owned by the selected protocol stay empty.
+// Password belongs to Trojan/legacy Shadowsocks or explicit SS2022 conversion.
+// Key belongs to SS2022; Flow to VLESS; Method to legacy Shadowsocks. Other
+// protocol fields stay empty. SS2022 selects exactly one of Key or Password.
 // Do not log this value or expose it in read results.
 type Account struct {
 	Email    string
@@ -45,11 +47,13 @@ type Account struct {
 	Password string
 	Flow     VLESSFlow
 	Method   ShadowsocksMethod
+	Key      string
 }
 
-// AccountCheck reports authoritative native identity and full account equality.
+// AccountCheck reports native identity/equality and sensitive prepared input.
 // An authentication alias must fail the check with ErrConflict before mutation.
 type AccountCheck struct {
+	Prepared        Account
 	Exists          bool
 	Equal           bool
 	AtCapacity      bool
@@ -63,7 +67,8 @@ type RemovalCheck struct {
 	Revision AccountRevision
 }
 
-// IAccountInspector checks native protocol, bounds and credential collisions.
+// IAccountInspector prepares credentials against native protocol facts and
+// checks bounds/collisions. Prepared is ready for the writer without more reads.
 // Checks and writes share the same borrowed execution access; external native
 // clients are outside that serialization contract.
 type IAccountInspector interface {
@@ -90,10 +95,12 @@ const (
 
 // MutationResult retains confirmed removal across a failed replacement. Unknown
 // requires settled native work before observation/replay. Live edits are volatile.
+// Key is the sensitive SS2022 user PSK for applied/unchanged outcomes. Do not log it.
 type MutationResult struct {
 	Outcome         MutationOutcome
 	PreviousRemoved bool
 	Revision        AccountRevision
+	Key             string
 }
 
 // Commands coordinates single-account changes on one generation-scoped binding.
@@ -119,6 +126,9 @@ func validAccount(account Account) bool {
 	if account.Protocol != Shadowsocks && account.Method != "" {
 		return false
 	}
+	if account.Protocol != Shadowsocks2022 && account.Key != "" {
+		return false
+	}
 	switch account.Protocol {
 	case VMess:
 		return account.Password == "" && account.Flow == FlowNone
@@ -128,6 +138,11 @@ func validAccount(account Account) bool {
 		return account.ID == [16]byte{} && account.Flow == FlowNone && len(account.Password) > 0 && len(account.Password) <= MaxPasswordBytes
 	case Shadowsocks:
 		return account.ID == [16]byte{} && account.Flow == FlowNone && len(account.Password) > 0 && len(account.Password) <= MaxPasswordBytes && validShadowsocksMethod(account.Method)
+	case Shadowsocks2022:
+		if account.ID != [16]byte{} || account.Flow != FlowNone || (account.Password == "") == (account.Key == "") {
+			return false
+		}
+		return validShadowsocks2022Key(account.Key) || account.Key == "" && len(account.Password) <= MaxPasswordBytes
 	default:
 		return false
 	}

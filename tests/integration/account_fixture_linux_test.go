@@ -31,6 +31,19 @@ func nativeAccountCommands(t testing.TB, life *instance.Service) *users.Commands
 	return commands
 }
 
+func nativeUserQueries(t testing.TB, life *instance.Service) *users.Service {
+	t.Helper()
+	reader, err := xray.NewUserReader(1<<20, 3*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queries, err := users.New(life, reader, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return queries
+}
+
 func accountInput(family users.Protocol, email string, index byte) users.Account {
 	a := users.Account{Email: email, Level: 1, Protocol: family, ID: [16]byte{6: 0x40, 8: 0x80, 15: index}}
 	if family == users.Trojan {

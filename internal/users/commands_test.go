@@ -21,22 +21,30 @@ type accounts struct {
 	block              bool
 	blockAdd           bool
 	afterRemove        context.CancelFunc
+	prepared           *users.Account
+	added              users.Account
 }
 
-func (a *accounts) Check(ctx context.Context, _ instance.ISession, _ string, _ users.Account) (users.AccountCheck, error) {
+func (a *accounts) Check(ctx context.Context, _ instance.ISession, _ string, account users.Account) (users.AccountCheck, error) {
 	a.steps = append(a.steps, "check")
 	if a.block {
 		<-ctx.Done()
 		return users.AccountCheck{}, ctx.Err()
 	}
-	return a.check, a.checkErr
+	check := a.check
+	check.Prepared = account
+	if a.prepared != nil {
+		check.Prepared = *a.prepared
+	}
+	return check, a.checkErr
 }
 func (a *accounts) CheckRemoval(context.Context, instance.ISession, string, string) (users.RemovalCheck, error) {
 	a.steps = append(a.steps, "check-removal")
 	return users.RemovalCheck{Exists: a.check.Exists, Revision: a.check.Revision}, a.checkErr
 }
-func (a *accounts) Add(ctx context.Context, _ instance.ISession, _ string, _ users.Account) error {
+func (a *accounts) Add(ctx context.Context, _ instance.ISession, _ string, account users.Account) error {
 	a.steps = append(a.steps, "add")
+	a.added = account
 	if a.blockAdd {
 		<-ctx.Done()
 		return ctx.Err()

@@ -2,6 +2,7 @@ package xray
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/xtls/xray-core/common/serial"
 	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/proxy/shadowsocks"
+	ss2022 "github.com/xtls/xray-core/proxy/shadowsocks_2022"
 	"github.com/xtls/xray-core/proxy/trojan"
 	"github.com/xtls/xray-core/proxy/vless"
 	"github.com/xtls/xray-core/proxy/vmess"
@@ -134,6 +136,9 @@ func accountFixture(t *testing.T, family users.Protocol) (*UserAccounts, *Sessio
 	if family == users.Shadowsocks {
 		c.inbounds[0].ProxySettings.Type = "xray.proxy.shadowsocks.ServerConfig"
 	}
+	if family == users.Shadowsocks2022 {
+		c.inbounds[0].ProxySettings = serial.ToTypedMessage(&ss2022.MultiUserServerConfig{Method: ss2022.MethodAES128GCM})
+	}
 	account := users.Account{Email: "Alice", Level: 2, Protocol: family, ID: [16]byte{15: 1}}
 	if family == users.Trojan {
 		account.ID = [16]byte{}
@@ -141,6 +146,9 @@ func accountFixture(t *testing.T, family users.Protocol) (*UserAccounts, *Sessio
 	}
 	if family == users.Shadowsocks {
 		account.ID, account.Password, account.Method = [16]byte{}, "isolated-test-password", users.MethodAES128GCM
+	}
+	if family == users.Shadowsocks2022 {
+		account.ID, account.Key = [16]byte{}, base64.StdEncoding.EncodeToString([]byte("0123456789abcdef"))
 	}
 	return a, &Session{api: &nativeAPI{handlers: c}}, c, account
 }
@@ -224,7 +232,7 @@ func TestAccountNativeCredentialCollisions(t *testing.T) {
 }
 
 func TestAccountIdentityFoldingMatchesNativeRemoval(t *testing.T) {
-	for _, family := range []users.Protocol{users.VMess, users.VLESS, users.Trojan} {
+	for _, family := range []users.Protocol{users.VMess, users.VLESS, users.Trojan, users.Shadowsocks2022} {
 		t.Run(fmt.Sprint(family), func(t *testing.T) {
 			a, s, c, account := accountFixture(t, family)
 			first, err := encodeAccount(account)
@@ -236,6 +244,10 @@ func TestAccountIdentityFoldingMatchesNativeRemoval(t *testing.T) {
 			if family == users.Trojan {
 				account.ID = [16]byte{}
 				account.Password = "other-password"
+			}
+			if family == users.Shadowsocks2022 {
+				account.ID = [16]byte{}
+				account.Key = base64.StdEncoding.EncodeToString([]byte("fedcba9876543210"))
 			}
 			second, err := encodeAccount(account)
 			if err != nil {
@@ -306,12 +318,14 @@ func FuzzAccountCredentialKey(f *testing.F) {
 	for _, cipher := range []shadowsocks.CipherType{shadowsocks.CipherType_AES_128_GCM, shadowsocks.CipherType_AES_256_GCM, shadowsocks.CipherType_CHACHA20_POLY1305, shadowsocks.CipherType_XCHACHA20_POLY1305} {
 		f.Add(byte(3), serial.ToTypedMessage(&shadowsocks.Account{CipherType: cipher, Password: "isolated-test-password"}).Value)
 	}
+	f.Add(byte(4), serial.ToTypedMessage(&ss2022.Account{Key: "MDEyMzQ1Njc4OWFiY2RlZg=="}).Value)
+	f.Add(byte(134), serial.ToTypedMessage(&ss2022.Account{Key: base64.StdEncoding.EncodeToString([]byte(strings.Repeat("k", 32)))}).Value)
 	f.Add(byte(1), []byte{0xff})
 	f.Fuzz(func(t *testing.T, selector byte, data []byte) {
 		if len(data) > 65536 {
 			return
 		}
-		family := users.Protocol(selector%4 + 1)
+		family := users.Protocol(selector%5 + 1)
 		var message proto.Message
 		switch family {
 		case users.VMess:
@@ -322,8 +336,14 @@ func FuzzAccountCredentialKey(f *testing.F) {
 			message = &trojan.Account{}
 		case users.Shadowsocks:
 			message = &shadowsocks.Account{}
+		case users.Shadowsocks2022:
+			message = &ss2022.Account{}
 		}
-		key, _, err := accountKey(&protocol.User{Account: &serial.TypedMessage{Type: serial.GetMessageType(message), Value: data}}, family)
+		binding := accountBinding{family: family, keyBytes: 16}
+		if selector >= 128 {
+			binding.keyBytes = 32
+		}
+		key, _, err := accountKey(&protocol.User{Account: &serial.TypedMessage{Type: serial.GetMessageType(message), Value: data}}, binding)
 		if err == nil {
 			want := 16
 			if family == users.Trojan {

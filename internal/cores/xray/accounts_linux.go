@@ -31,22 +31,34 @@ func NewUserAccounts(options UserAccountOptions) (*UserAccounts, error) {
 
 // Check verifies inbound type, exact account equality and authentication aliases.
 func (a *UserAccounts) Check(ctx context.Context, session instance.ISession, inbound string, account users.Account) (users.AccountCheck, error) {
-	family, records, err := a.observeAccounts(ctx, session, inbound)
+	ctx, cancel := context.WithTimeout(ctx, a.options.Timeout)
+	defer cancel()
+	api, err := userAPIFor(session)
 	if err != nil {
 		return users.AccountCheck{}, err
 	}
-	if family != account.Protocol {
+	binding, err := a.readBinding(ctx, api.handlers, inbound)
+	if err != nil {
+		return users.AccountCheck{}, err
+	}
+	if binding.family != account.Protocol {
 		return users.AccountCheck{}, users.ErrUnsupported
+	}
+	if binding.family == users.Shadowsocks2022 {
+		account, err = users.PrepareShadowsocks2022(account, binding.keyBytes)
+		if err != nil {
+			return users.AccountCheck{}, err
+		}
 	}
 	desired, err := encodeAccount(account)
 	if err != nil {
 		return users.AccountCheck{}, err
 	}
-	key, _, err := accountKey(desired, family)
+	key, _, err := accountKey(desired, binding)
 	if err != nil {
 		return users.AccountCheck{}, err
 	}
-	api, err := userAPIFor(session)
+	records, err := a.readAccounts(ctx, api.handlers, inbound, binding)
 	if err != nil {
 		return users.AccountCheck{}, err
 	}
@@ -54,12 +66,12 @@ func (a *UserAccounts) Check(ctx context.Context, session instance.ISession, inb
 	if err != nil {
 		return users.AccountCheck{}, err
 	}
-	current, err := selectAccount(records, account.Email, key, family)
+	current, err := selectAccount(records, account.Email, key, binding.family)
 	if err != nil {
 		return users.AccountCheck{}, err
 	}
 	if current == nil {
-		return users.AccountCheck{DesiredRevision: desiredRevision, AtCapacity: len(records) >= a.options.MaxUsers}, nil
+		return users.AccountCheck{Prepared: account, DesiredRevision: desiredRevision, AtCapacity: len(records) >= a.options.MaxUsers}, nil
 	}
 	if !current.replaceable {
 		return users.AccountCheck{}, users.ErrUnsupported
@@ -68,26 +80,32 @@ func (a *UserAccounts) Check(ctx context.Context, session instance.ISession, inb
 	if err != nil {
 		return users.AccountCheck{}, err
 	}
-	return users.AccountCheck{Exists: true, Revision: currentRevision, DesiredRevision: desiredRevision, Equal: current.user.Level == desired.Level && proto.Equal(current.user.Account, desired.Account)}, nil
+	return users.AccountCheck{Prepared: account, Exists: true, Revision: currentRevision, DesiredRevision: desiredRevision, Equal: current.user.Level == desired.Level && proto.Equal(current.user.Account, desired.Account)}, nil
 }
 
 // CheckRemoval rejects ambiguous identity/credential aliases before deletion.
 func (a *UserAccounts) CheckRemoval(ctx context.Context, session instance.ISession, inbound, email string) (users.RemovalCheck, error) {
-	family, records, err := a.observeAccounts(ctx, session, inbound)
+	ctx, cancel := context.WithTimeout(ctx, a.options.Timeout)
+	defer cancel()
+	api, err := userAPIFor(session)
 	if err != nil {
 		return users.RemovalCheck{}, err
 	}
-	current, err := selectAccount(records, email, "", family)
+	binding, err := a.readBinding(ctx, api.handlers, inbound)
+	if err != nil {
+		return users.RemovalCheck{}, err
+	}
+	records, err := a.readAccounts(ctx, api.handlers, inbound, binding)
+	if err != nil {
+		return users.RemovalCheck{}, err
+	}
+	current, err := selectAccount(records, email, "", binding.family)
 	if err != nil {
 		return users.RemovalCheck{}, err
 	}
 	result := users.RemovalCheck{}
 	if current != nil {
 		result.Exists = true
-		api, err := userAPIFor(session)
-		if err != nil {
-			return users.RemovalCheck{}, err
-		}
 		revision, err := fingerprintAccount(api.revisionKey, current.user)
 		if err != nil {
 			return users.RemovalCheck{}, err

@@ -9,8 +9,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/papilio-platform/Node/internal/instance"
 	ss2022 "github.com/xtls/xray-core/proxy/shadowsocks_2022"
 )
+
+func startSS2022Managed(t testing.TB, method string) (*instance.Service, int, string) {
+	t.Helper()
+	port := accountServerPort(t)
+	source, key := ss2022Source(t, port, method, `,"clients":[]`)
+	life, _, _ := nativeInstance(t, source)
+	if _, err := life.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	return life, port, key
+}
 
 func ss2022Source(t testing.TB, port int, method, membership string) ([]byte, string) {
 	t.Helper()

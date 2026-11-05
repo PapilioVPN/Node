@@ -5,7 +5,9 @@ creates, replaces and removes single accounts on one managed engine binding.
 The tested adapter uses Xray **v26.10.31** (`a4a3dff`) on Linux amd64/arm64 and
 its private `HandlerService`. Native client/server tests cover VMess AEAD,
 ordinary VLESS and Trojan over isolated local TCP, VLESS Vision over verified
-TLS 1.3, and the four legacy Shadowsocks AEAD methods below. Secure acceptance
+TLS 1.3, the four legacy Shadowsocks AEAD methods, and Shadowsocks2022 AES
+multi-user accounts. ChaCha2022 single-user key replacement uses full configuration.
+Secure acceptance
 round-trips an inner HTTPS payload. These are specific
 account/traffic checks, not complete protocol/transport support. No user
 management CLI command or external management endpoint is provided yet.
@@ -95,9 +97,13 @@ a positive whole-command timeout. Generated requests, account payloads and nativ
 credential indexes stay inside Xray; commands own the check/write ordering.
 Neither constructor performs I/O. The adapter reuses the session's existing
 connection and creates no retry worker, subprocess or user cache.
+`AccountCheck.Prepared` carries sensitive desired input ready for the writer.
+For Shadowsocks2022 this resolves credentials against the native method once; the command
+passes it directly to Add without another configuration lookup.
 
 `Account` is sensitive desired input: valid UTF-8, nonempty **1..256-byte** `Email`, native
-`uint32` `Level`, and a `Protocol` selecting VMess/VLESS/Trojan/legacy Shadowsocks.
+`uint32` `Level`, and a `Protocol` selecting VMess/VLESS/Trojan/legacy Shadowsocks/
+Shadowsocks2022.
 VMess/VLESS use a **16-byte** `ID` and no password; Trojan and legacy Shadowsocks
 use a valid UTF-8 **1..4096-byte** `Password` and no ID. Legacy Shadowsocks requires
 an explicit `Method`; other protocols reject a nonempty method.
@@ -106,7 +112,9 @@ VLESS also accepts `FlowNone` (empty) or `FlowVision`
 client-only `-udp443` suffix are invalid before native access. VLESS
 encryption/reverse/test settings are not part of this input; replacing an existing
 account with those settings fails rather than erasing them. Account values must
-never be logged or copied into read results.
+never be logged or copied into ordinary metadata read results. SS2022 selects
+exactly one explicit `Key` or bounded `Password` conversion input, with no ID,
+flow or per-account method. Other protocols reject `Key`.
 
 | Operation | Contract |
 | --- | --- |
@@ -148,6 +156,12 @@ adds one direct `AlterInbound`; replacement adds remove then add. An unchanged
 request sends no mutation. There is no per-user RPC, list-and-filter single read,
 native bulk claim or hidden rollback. Inspection scans native credentials once;
 only the selected current record and desired account receive revision tokens.
+Invalid native binding/family or Shadowsocks2022 key-size context fails after the binding
+read, before fetching users. A mismatch between native count and fetched membership
+returns `ErrConflict` before mutation. It can indicate an external race or native
+unnamed/unindexed users; it never becomes successful absence. Settle external
+native work and re-read, or restart from captured source to clear unindexed live
+state. Equal counts do not promise an atomic snapshot or fence an external writer.
 
 ### VLESS flow and secure transport
 
@@ -216,6 +230,46 @@ sibling isolation, stale removal, deletion and restart discarding live users.
 An established AES-128-GCM stream remains usable after account removal. This
 does not establish UDP or every transport variant as tested support.
 
+### Shadowsocks2022 keys and native modes
+
+`Shadowsocks2022` live commands target native AES multi-user inbounds. The native
+global method owns the key size: **16 bytes** for `2022-blake3-aes-128-gcm`,
+**32 bytes** for `2022-blake3-aes-256-gcm`. Native settings are authoritative and
+are not changed by an account request. Choose exactly one input:
+
+| Input | Meaning |
+| --- | --- |
+| `Key` | Canonical padded standard Base64 of 16/32 bytes. Invalid/noncanonical/wrong-size input fails, without hashing or a default method. |
+| `Password` | Explicit UTF-8 password-to-PSK conversion, 1..4096 bytes. Preserve an already appropriately sized Base64 value; otherwise SHA256 the password bytes and take the native method's first 16/32 bytes. |
+
+The prepared account clears Password and carries canonical Key. This pure
+conversion has one owner in `users.PrepareShadowsocks2022`; engine payloads and
+the official native `DeriveUserPSKHash` authentication index stay in Xray. Matching
+native key hashes under different emails conflict, preventing an alias from
+overwriting or deleting another user's authentication entry. Native identities
+use lowercasing, not Unicode EqualFold; `s` and `ſ` remain separate.
+
+Applied/unchanged `MutationResult.Key` is the **sensitive user PSK**, including
+password conversion and exact replay. It is not the server/master key. Consumers
+can use it directly in the native `serverPSK:userPSK` client credential and must
+protect it from logs and ordinary display. Unknown/absent/failed unchanged results
+do not return an applied key. Get/List metadata still contains only email, level
+and revision; no credential read or hidden derivation request is required.
+
+Native tests verify both AES methods with actual accepted/denied HTTPS traffic,
+explicit PSKs, password conversion, credential replacement, alias/revision/replay,
+membership, sibling isolation and restart. A lost acknowledgement is injected
+after a real add; replay returns the settled key and an actual client authenticates.
+An established AES128 stream survives removal, while new authentication is denied.
+Unknown native fields/invalid key state fail before replacement.
+
+Native single-user and relay inbounds do not expose these live multi-user
+commands; they return `ErrUnsupported`. The pinned engine's Shadowsocks2022 ChaCha method is
+single-user only. Its real traffic and key rotation are tested through
+revision-conditional full configuration replacement, which restarts the engine.
+See [empty versus single-user membership](engines/xray.md#empty-shadowsocks2022-membership).
+UDP and broader transport combinations are outside these executed traffic checks.
+
 ### Effects, interruption and recovery
 
 `MutationResult.Outcome` reports this request's acknowledged effects:
@@ -223,7 +277,7 @@ does not establish UDP or every transport variant as tested support.
 | Outcome | Meaning |
 | --- | --- |
 | `unchanged` | No mutation was sent by this request. This can accompany a validation/conflict/read failure. |
-| `applied` | The requested account add/replacement was acknowledged. `Revision` is its token. |
+| `applied` | The requested account add/replacement was acknowledged. `Revision` is its token; SS2022 includes its sensitive user Key. |
 | `absent` | Absence was observed, removal was acknowledged, or replacement stopped after confirmed removal before add. |
 | `unknown` | A mutation returned an error without a reliable acknowledgement. The native effect may have happened. |
 

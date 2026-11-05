@@ -181,5 +181,6 @@ Native checks cover zero membership, denied server-key traffic, restart,
 single-user intent, validation/start consistency, healthy execution reuse,
 permissions and cleanup. Cancellation during a real blocked certificate read
 joins the converter before removing its files. This establishes empty-state
-preparation and observation; typed live Shadowsocks2022 account mutations are
-not supported by this revision's account input.
+preparation and observation. [Live Shadowsocks2022 account commands](../users.md#shadowsocks2022-keys-and-native-modes)
+use this zero-member mode for AES users; native ChaCha single-user key replacement
+uses full configuration and restart.

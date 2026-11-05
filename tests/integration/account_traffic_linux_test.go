@@ -134,49 +134,56 @@ func TestAccountRemovalDoesNotTerminateEstablishedStream(t *testing.T) {
 				t.Fatal(err)
 			}
 			sockets := startAccountClients(t, port, []users.Account{account})
-			listener, err := net.Listen("tcp", "127.0.0.1:0")
-			if err != nil {
-				t.Fatal(err)
-			}
-			done := make(chan struct{})
-			go func() {
-				defer close(done)
-				conn, err := listener.Accept()
-				if err != nil {
-					return
-				}
-				defer conn.Close()
-				conn.SetDeadline(time.Now().Add(5 * time.Second))
-				io.Copy(conn, conn)
-			}()
-			t.Cleanup(func() { listener.Close(); <-done })
-			conn, err := net.DialTimeout("unix", sockets[0], time.Second)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer conn.Close()
-			conn.SetDeadline(time.Now().Add(4 * time.Second))
-			fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", listener.Addr(), listener.Addr())
-			reader := bufio.NewReader(conn)
-			response, err := http.ReadResponse(reader, &http.Request{Method: http.MethodConnect})
-			if err != nil || response.StatusCode != 200 {
-				t.Fatal("stream CONNECT failed", err)
-			}
-			echo := func() {
-				t.Helper()
-				if _, err := conn.Write([]byte("probe")); err != nil {
+			verifyAccountStreamSurvives(t, sockets[0], func() {
+				if _, err := commands.Remove(t.Context(), target, account.Email, created.Revision); err != nil {
 					t.Fatal(err)
 				}
-				got := make([]byte, 5)
-				if _, err := io.ReadFull(reader, got); err != nil || string(got) != "probe" {
-					t.Fatal("established stream interrupted", err)
-				}
-			}
-			echo()
-			if _, err := commands.Remove(t.Context(), target, account.Email, created.Revision); err != nil {
-				t.Fatal(err)
-			}
-			echo()
+			})
 		})
 	}
+}
+
+func verifyAccountStreamSurvives(t *testing.T, socket string, mutate func()) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		conn.SetDeadline(time.Now().Add(5 * time.Second))
+		io.Copy(conn, conn)
+	}()
+	t.Cleanup(func() { listener.Close(); <-done })
+	conn, err := net.DialTimeout("unix", socket, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(4 * time.Second))
+	fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", listener.Addr(), listener.Addr())
+	reader := bufio.NewReader(conn)
+	response, err := http.ReadResponse(reader, &http.Request{Method: http.MethodConnect})
+	if err != nil || response.StatusCode != 200 {
+		t.Fatal("stream CONNECT failed", err)
+	}
+	echo := func() {
+		t.Helper()
+		if _, err := conn.Write([]byte("probe")); err != nil {
+			t.Fatal(err)
+		}
+		got := make([]byte, 5)
+		if _, err := io.ReadFull(reader, got); err != nil || string(got) != "probe" {
+			t.Fatal("established stream interrupted", err)
+		}
+	}
+	echo()
+	mutate()
+	echo()
 }

@@ -26,6 +26,7 @@ func (c *Commands) Create(ctx context.Context, target Target, account Account) (
 	if check.Exists {
 		if check.Equal {
 			result.Revision = check.Revision
+			result.Key = check.Prepared.Key
 			return result, nil
 		}
 		return result, ErrConflict
@@ -33,12 +34,13 @@ func (c *Commands) Create(ctx context.Context, target Target, account Account) (
 	if check.AtCapacity {
 		return result, ErrLimit
 	}
-	if err := c.writer.Add(ctx, access.Session(), target.Inbound, account); err != nil {
+	if err := c.writer.Add(ctx, access.Session(), target.Inbound, check.Prepared); err != nil {
 		result.Outcome = OutcomeUnknown
 		return result, errors.Join(err, ctx.Err())
 	}
 	result.Outcome = OutcomeApplied
 	result.Revision = check.DesiredRevision
+	result.Key = check.Prepared.Key
 	return result, ctx.Err()
 }
 
@@ -66,6 +68,7 @@ func (c *Commands) Replace(ctx context.Context, target Target, expected AccountR
 	}
 	if check.Equal {
 		result.Revision = check.Revision
+		result.Key = check.Prepared.Key
 		return result, nil
 	}
 	if check.Revision != expected {
@@ -80,12 +83,13 @@ func (c *Commands) Replace(ctx context.Context, target Target, expected AccountR
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
-	if err := c.writer.Add(ctx, access.Session(), target.Inbound, account); err != nil {
+	if err := c.writer.Add(ctx, access.Session(), target.Inbound, check.Prepared); err != nil {
 		result.Outcome = OutcomeUnknown
 		return result, errors.Join(err, ctx.Err())
 	}
 	result.Outcome = OutcomeApplied
 	result.Revision = check.DesiredRevision
+	result.Key = check.Prepared.Key
 	return result, ctx.Err()
 }
 
