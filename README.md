@@ -47,7 +47,7 @@ configuration revisions, native version and confirmed process outcomes.
 | Instance lifecycle | Typed state/revisions, native version and exit/cleanup outcomes. Bounded start/stop/restart with explicit recovery; real-engine tests cover local forwarding, crash recovery and lifetime shutdown. Status reads perform no engine I/O; see [instance contracts](docs/instances.md). |
 | Engine console logs | Opt-in bounded replay/live reads with resumable cursors, explicit retention gaps and per-run identity. Xray console capture is verified across real traffic and restart; native file/disabled settings remain authoritative. See [log contracts](docs/engine-logs.md). |
 | Engine configuration | Sensitive desired-source reads, effective native validation and revision-conditional full replacement. Unchanged healthy input reuses the process; failed replacement retains actual desired/applied history. Full changes require restart; see [configuration contracts](docs/configuration.md). |
-| Live users | Focused reads and revision-conditional create/replace/remove for basic VMess/VLESS/Trojan accounts, with real accepted/denied traffic checks. Live edits reset on restart; removal preserves established streams. See [user contracts and tested scope](docs/users.md). |
+| Live users | Focused reads and revision-conditional create/replace/remove for VMess, VLESS (including Vision over verified TLS 1.3) and Trojan accounts, with real accepted/denied traffic checks. Live edits reset on restart; removal preserves established streams. See [user contracts and tested scope](docs/users.md). |
 | Linux verification | CI builds and tests natively on amd64 and arm64, including checksum-pinned Xray validation and process tests. |
 
 ## Quick start

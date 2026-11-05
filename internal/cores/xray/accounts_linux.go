@@ -61,7 +61,7 @@ func (a *UserAccounts) Check(ctx context.Context, session instance.ISession, inb
 	if current == nil {
 		return users.AccountCheck{DesiredRevision: desiredRevision, AtCapacity: len(records) >= a.options.MaxUsers}, nil
 	}
-	if !current.basic {
+	if !current.replaceable {
 		return users.AccountCheck{}, users.ErrUnsupported
 	}
 	currentRevision, err := fingerprintAccount(api.revisionKey, current.user)

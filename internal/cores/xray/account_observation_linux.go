@@ -12,9 +12,9 @@ import (
 )
 
 type nativeAccount struct {
-	user  *protocol.User
-	key   string
-	basic bool
+	user        *protocol.User
+	key         string
+	replaceable bool
 }
 
 // The native API has no focused inbound-type or credential-index query. Bounds
@@ -81,11 +81,11 @@ func (a *UserAccounts) observeAccounts(ctx context.Context, session instance.ISe
 		if err := ctx.Err(); err != nil {
 			return 0, nil, err
 		}
-		key, basic, err := accountKey(user, family)
+		key, replaceable, err := accountKey(user, family)
 		if err != nil {
 			return 0, nil, err
 		}
-		records = append(records, nativeAccount{user: user, key: key, basic: basic})
+		records = append(records, nativeAccount{user: user, key: key, replaceable: replaceable})
 	}
 	return family, records, nil
 }

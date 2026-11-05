@@ -4,7 +4,8 @@
 creates, replaces and removes single accounts on one managed engine binding.
 The tested adapter uses Xray **v26.10.31** (`a4a3dff`) on Linux amd64/arm64 and
 its private `HandlerService`. Native client/server tests cover VMess AEAD,
-basic VLESS without flow and Trojan over isolated local TCP. These are specific
+ordinary VLESS and Trojan over isolated local TCP, plus VLESS Vision over verified
+TLS 1.3 with an inner HTTPS payload. These are specific
 account/traffic checks, not complete protocol/transport support. No user
 management CLI command or external management endpoint is provided yet.
 
@@ -97,9 +98,12 @@ connection and creates no retry worker, subprocess or user cache.
 `Account` is sensitive desired input: valid UTF-8, nonempty **1..256-byte** `Email`, native
 `uint32` `Level`, and a `Protocol` selecting VMess/VLESS/Trojan. VMess/VLESS use a
 **16-byte** `ID` and no password; Trojan uses a valid UTF-8 **1..4096-byte** `Password` and no
-ID. These commands do not accept VLESS flow/encryption/reverse settings. A basic
-create/replace refuses an existing advanced VLESS account rather than erasing
-those settings. Account values must never be logged or copied into read results.
+ID. VLESS also accepts `FlowNone` (empty) or `FlowVision`
+(`xtls-rprx-vision`). Nonempty flow on other protocols, unknown flows and the
+client-only `-udp443` suffix are invalid before native access. VLESS
+encryption/reverse/test settings are not part of this input; replacing an existing
+account with those settings fails rather than erasing them. Account values must
+never be logged or copied into read results.
 
 | Operation | Contract |
 | --- | --- |
@@ -110,7 +114,7 @@ those settings. Account values must never be logged or copied into read results.
 Read `User.Revision` with Get/List, or retain `MutationResult.Revision` after a
 successful create/replace/no-op. Replace/Remove require a nonempty token of at
 most 128 bytes. Revisions use HMAC-SHA256 over the native user representation with
-a random private key owned by that session. They change with credentials/level
+a random private key owned by that session. They change with credentials/level/flow
 and session replacement, without exposing a password-checking hash. Treat tokens
 as sensitive metadata, not authorization. They are content fences, not durable
 sequence numbers: identical content recreated within the same execution has the
@@ -141,6 +145,35 @@ adds one direct `AlterInbound`; replacement adds remove then add. An unchanged
 request sends no mutation. There is no per-user RPC, list-and-filter single read,
 native bulk claim or hidden rollback. Inspection scans native credentials once;
 only the selected current record and desired account receive revision tokens.
+
+### VLESS flow and secure transport
+
+Flow is explicit per live account. Empty means ordinary VLESS, even if the source
+inbound's `settings.flow` defaults static clients to Vision. Live commands do not
+inherit or override input from that source default. Static clients still follow
+the native configuration builder on startup/restart. A flow-only change uses
+the same conditional remove/add operation, changes the revision and leaves
+sibling accounts alone. Flow does not create a different UUID authentication
+identity: credential aliases conflict across flows.
+
+For TCP, the pinned native Vision implementation requires direct TLS 1.3 or
+REALITY. The executed secure acceptance here covers **raw TCP + TLS 1.3**, with
+CA/name verification and no insecure verification override. It does not establish
+REALITY, UDP, multiplexing or every transport as supported. Configure stream
+security separately in the captured Xray configuration. A native AddUser
+acknowledgement confirms an account change, not that its stream settings or a
+remote client can carry traffic. Incompatible transport settings remain a real
+connection failure; commands do not silently downgrade Vision.
+
+Native tests round-trip a 196,608-byte inner HTTPS payload through owned Xray
+client/server processes, verify TLS 1.3 at the destination and compare exact
+bytes in both directions. They check both flow transitions, replay, stale
+revision/generation, removal, sibling isolation and restart restoring the static
+source while dropping live accounts. Wrong flow, untrusted CA, wrong server name,
+Vision on TLS 1.2 and Vision on an unencrypted transport cannot reach the actual
+target. Ordinary VLESS succeeds under the corresponding transport controls.
+Certificates are ephemeral test data; no system trust or host routing is changed.
+These checks establish behavior, not a measured Vision splice/throughput claim.
 
 ### Effects, interruption and recovery
 

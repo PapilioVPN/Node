@@ -23,7 +23,7 @@ func encodeAccount(account users.Account) (*protocol.User, error) {
 	case users.VMess:
 		credential = &vmess.Account{Id: id.String()}
 	case users.VLESS:
-		credential = &vless.Account{Id: id.String()}
+		credential = &vless.Account{Id: id.String(), Flow: string(account.Flow)}
 	case users.Trojan:
 		credential = &trojan.Account{Password: account.Password}
 	default:
@@ -37,7 +37,8 @@ func encodeAccount(account users.Account) (*protocol.User, error) {
 	return protocol.ToProtoUser(memory), nil
 }
 
-// Keys follow the pinned native authentication indexes, not credential spelling.
+// Keys follow native authentication indexes. The boolean permits replacement
+// only when the account's entire representation is supported by our input.
 func accountKey(user *protocol.User, family users.Protocol) (string, bool, error) {
 	if user == nil || user.Account == nil {
 		return "", false, users.ErrUnsupported
@@ -63,7 +64,8 @@ func accountKey(user *protocol.User, family users.Protocol) (string, bool, error
 			return "", false, users.ErrUnsupported
 		}
 		key := vless.ProcessUUID(id)
-		return string(key[:]), proto.Equal(account, &vless.Account{Id: account.Id}), nil
+		supportedFlow := account.Flow == "" || account.Flow == vless.XRV
+		return string(key[:]), supportedFlow && proto.Equal(account, &vless.Account{Id: account.Id, Flow: account.Flow}), nil
 	case users.Trojan:
 		account := &trojan.Account{}
 		if user.Account.Type != serial.GetMessageType(account) || proto.Unmarshal(user.Account.Value, account) != nil {

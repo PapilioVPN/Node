@@ -21,17 +21,27 @@ const (
 // MaxPasswordBytes bounds a Trojan credential in bytes.
 const MaxPasswordBytes = 4096
 
+// VLESSFlow selects inbound account behavior, independently of stream security.
+type VLESSFlow string
+
+const (
+	FlowNone   VLESSFlow = ""
+	FlowVision VLESSFlow = "xtls-rprx-vision"
+)
+
 // ErrConflict rejects a different account, stale revision or authentication alias.
 var ErrConflict = errors.New("user account conflict")
 
 // Account is sensitive desired account input. ID belongs to VMess/VLESS;
-// Password belongs to Trojan. Do not log this value or expose it in read results.
+// Password belongs to Trojan; Flow belongs to VLESS and defaults to no flow.
+// Do not log this value or expose it in read results.
 type Account struct {
 	Email    string
 	Level    uint32
 	Protocol Protocol
 	ID       [16]byte
 	Password string
+	Flow     VLESSFlow
 }
 
 // AccountCheck reports authoritative native identity and full account equality.
@@ -104,10 +114,12 @@ func validAccount(account Account) bool {
 		return false
 	}
 	switch account.Protocol {
-	case VMess, VLESS:
-		return account.Password == ""
+	case VMess:
+		return account.Password == "" && account.Flow == FlowNone
+	case VLESS:
+		return account.Password == "" && (account.Flow == FlowNone || account.Flow == FlowVision)
 	case Trojan:
-		return account.ID == [16]byte{} && len(account.Password) > 0 && len(account.Password) <= MaxPasswordBytes
+		return account.ID == [16]byte{} && account.Flow == FlowNone && len(account.Password) > 0 && len(account.Password) <= MaxPasswordBytes
 	default:
 		return false
 	}

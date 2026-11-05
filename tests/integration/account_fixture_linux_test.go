@@ -87,7 +87,7 @@ func startAccountClients(t testing.TB, port int, accounts []users.Account) []str
 			settings = fmt.Sprintf(`{"vnext":[{"address":"127.0.0.1","port":%d,"users":[{"id":%q,"security":"auto"}]}]}`, port, id)
 		case users.VLESS:
 			kind = "vless"
-			settings = fmt.Sprintf(`{"vnext":[{"address":"127.0.0.1","port":%d,"users":[{"id":%q,"encryption":"none"}]}]}`, port, id)
+			settings = fmt.Sprintf(`{"vnext":[{"address":"127.0.0.1","port":%d,"users":[{"id":%q,"encryption":"none","flow":%q}]}]}`, port, id, account.Flow)
 		case users.Trojan:
 			kind = "trojan"
 			settings = fmt.Sprintf(`{"servers":[{"address":"127.0.0.1","port":%d,"password":%q}]}`, port, account.Password)

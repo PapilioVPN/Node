@@ -261,7 +261,7 @@ func TestAccountNativeBoundsTypesAndPrivacy(t *testing.T) {
 		t.Fatal("unsafe account type allowed", err)
 	}
 	c.inbounds[0].ProxySettings.Type = "xray.proxy.vless.inbound.Config"
-	c.response = []*protocol.User{{Email: "Alice", Account: serial.ToTypedMessage(&vless.Account{Id: "00000000-0000-0000-0000-000000000001", Flow: "xtls-rprx-vision"})}}
+	c.response = []*protocol.User{{Email: "Alice", Account: serial.ToTypedMessage(&vless.Account{Id: "00000000-0000-0000-0000-000000000001", Encryption: "unsupported"})}}
 	c.count = 1
 	if _, err := a.Check(t.Context(), s, "owned", account); !errors.Is(err, users.ErrUnsupported) {
 		t.Fatal("basic replacement could erase advanced account", err)
