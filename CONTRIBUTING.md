@@ -193,6 +193,20 @@ The native credential-mapping fuzz target also runs with the same bounds in CI:
 go test ./internal/cores/xray -run='^$' -fuzz='^FuzzAccountCredentialKey$' -fuzztime=5s -parallel=2
 ```
 
+Empty managed Shadowsocks2022 acceptance checks actual zero membership and denied
+server-key traffic without synthetic users, plus native conversion failure,
+cancellation/reaping, source preservation and private-file cleanup. Its native
+preparation fuzz target runs in CI:
+
+```bash
+go test ./internal/cores/xray -run='^$' -fuzz='^FuzzManaged2022Preparation$' -fuzztime=5s -parallel=2
+PAPILIO_TEST_XRAY="$xray_test_root/engine/xray" go test -run '^$' -bench '^BenchmarkSS2022ManagedValidation$' -benchtime=20x -benchmem -count=3 ./tests/integration
+```
+
+This benchmark includes native conversion, protobuf preparation, native validation
+and temporary-file cleanup. Allocations describe the Node process, not child
+engine memory/CPU. It does not measure readiness or forwarding throughput.
+
 ## Reporting a problem
 
 Include `node version --json`, the command or operation, expected/actual results

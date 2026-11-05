@@ -55,7 +55,7 @@ func NewLauncher(lifetime context.Context, options LaunchOptions, config []byte)
 		checker: checker, revision: configurationRevision(captured)}, nil
 }
 
-// Revision identifies original bytes and the preparation policy, excluding the
+// Revision identifies original bytes and the execution policy, excluding the
 // temporary socket path and externally referenced file contents.
 func (l *Launcher) Revision() instance.Revision { return l.revision }
 
@@ -78,7 +78,7 @@ func (l *Launcher) Start(ctx context.Context) (session instance.ISession, err er
 		return nil, err
 	}
 	versionObservedAt := time.Now().UTC()
-	prepared, err := l.prepareConfiguration()
+	prepared, err := l.prepareConfiguration(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -107,8 +107,8 @@ func (l *Launcher) Start(ctx context.Context) (session instance.ISession, err er
 			err = errors.Join(context.Cause(ctx), err)
 		}
 	}()
-	socket, path := prepared.socket, prepared.path
-	if err := l.checker.check(ctx, l.config, path); err != nil {
+	socket := prepared.socket
+	if err := l.checker.check(ctx, prepared.input); err != nil {
 		return nil, err
 	}
 	api, err = newNativeAPI(socket)
@@ -116,11 +116,10 @@ func (l *Launcher) Start(ctx context.Context) (session instance.ISession, err er
 		return nil, fmt.Errorf("create Xray API client: %w", err)
 	}
 	processCtx, stopProcess := context.WithCancel(l.lifetime)
-	cmd := exec.CommandContext(processCtx, l.options.Check.Executable,
-		"run", "-format=json", "-c", "stdin:", "-c", path)
+	cmd := exec.CommandContext(processCtx, l.options.Check.Executable, prepared.input.arguments(false)...)
 	cmd.Dir = l.options.Check.WorkingDir
 	cmd.Env = nativeEnvironment(l.options.Check.AssetsDir)
-	cmd.Stdin = bytes.NewReader(l.config)
+	cmd.Stdin = bytes.NewReader(prepared.input.stdin)
 	output := &diagnosticTail{data: make([]byte, l.options.Check.MaxDiagnosticBytes)}
 	cmd.Stdout, cmd.Stderr = output, output
 	var runtimeLogs *runtimeOutput

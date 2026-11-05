@@ -6,7 +6,8 @@ checks on **Linux amd64 and arm64**, using checksum-pinned official release
 archives. The [instance service](../instances.md) owns application lifecycle
 policy. A private HTTP forwarding fixture verifies basic payload traversal across
 lifecycle cycles. Internal [live user capabilities](../users.md) additionally
-verify conditional account mutations and real basic VMess/VLESS/Trojan traffic.
+verify conditional account mutations, VLESS Vision and legacy Shadowsocks traffic.
+Explicit empty Shadowsocks2022 AES membership is verified separately below.
 Traffic-statistics operations and control endpoints are not exposed yet; these
 fixtures are not complete protocol/transport support evidence.
 
@@ -68,11 +69,12 @@ cancellation, reaping and concurrent calls.
 
 `ConfigurationFactory` captures launchers for the separate
 [configuration service](../configuration.md). `Launcher.Source` returns an owned
-copy of the sensitive original bytes. `Launcher.Validate` prepares the same
-private API overlay as Start, performs native validation without listeners and
-removes its owned directory before returning. It respects both caller cancellation
+copy of the sensitive original bytes. `Launcher.Validate` uses the same private
+API and account mode as Start, validates without listeners and removes its owned
+directory before returning. It respects both caller cancellation
 and the injected process lifetime. Unlike the raw `Checker.Check` operation, this
-checks the effective Node-managed input. Native validation is not readiness and
+checks the effective Node-managed input. Its whole timeout includes any native
+conversion plus validation. Native validation is not readiness and
 does not freeze executable/asset contents for a later startup.
 
 `NewLauncher` captures a bounded copy of the supplied JSON without I/O. The caller
@@ -86,21 +88,22 @@ client's version. The executable must not be replaced during startup; the
 version observation is not an atomic filesystem snapshot. The session retains
 the version and its observation time. Status reads never start another command.
 
-`Revision` is SHA256 of the original configuration bytes and the API preparation
-policy identifier. Runtime/socket paths are excluded. Whitespace changes produce
+`Revision` is SHA256 of original configuration bytes and the preparation policy
+identifier. Runtime/socket paths are excluded. Whitespace changes produce
 a different revision; referenced file/asset contents and executable versions are
 not part of this configuration digest.
 
 Each `Start` creates a fresh 0700 directory with a 0600 API overlay and private
-filesystem Unix socket. The original configuration stays unchanged on stdin.
+filesystem Unix socket. Original configuration stays unchanged; the ordinary JSON
+path passes it through stdin.
 The overlay preserves the native API tag and service order, adds `StatsService`
 and `HandlerService` if absent and replaces the listener with the owned socket.
-The preparation-policy identifier is now `papilio/xray/api-overlay/v2`; captured
-revisions therefore change from the earlier stats-only policy even for identical
-original bytes. An absent/null API
-gets the tag `papilio-api`; an existing empty tag remains invalid. No TCP
+The preparation-policy identifier is `papilio/xray/preparation/v3`; captured
+revisions change from earlier policies even for identical original bytes.
+An absent/null API gets the tag `papilio-api`; an existing empty tag remains invalid. No TCP
 management listener is introduced. Native check and run consume the same two
-configuration sources. Only strict JSON input is accepted for the projection.
+configuration sources on the JSON path. Explicit empty Shadowsocks2022 AES
+membership uses the compiled path below. Only strict JSON source input is accepted.
 
 One reusable official gRPC client calls `GetSysStats` over the private socket to
 establish API readiness. There is no PID/log-only readiness, per-probe subprocess,
@@ -135,3 +138,48 @@ outcome. Exit becomes visible after the one native Wait, separately from cleanup
 completion. `CleanupComplete` means the cleanup attempt finished; a non-nil
 `CleanupFailure` means release failed. Returned exit records can be modified
 without changing session state; error objects remain shared read-only.
+
+## Empty Shadowsocks2022 membership
+
+For the pinned engine, an explicitly empty `clients`/`users` array would normally
+build a single-user server: the bare server key could authenticate, and later
+native AddUser would be unavailable. Node prepares explicit empty AES membership
+as native `MultiUserServerConfig` with **zero real users**, without a dummy account.
+Count/List/Get use actual native membership; the server key alone cannot reach
+the test target before or after restart.
+
+| Effective membership | Execution |
+| --- | --- |
+| `clients: []`, or `users: []` when clients is absent/null | Managed empty mode for `2022-blake3-aes-128-gcm` / `2022-blake3-aes-256-gcm`. |
+| Both membership fields absent/null | Preserve native single-user intent. The configured server key is a valid credential; this is not an empty managed user collection. |
+| Nonempty effective array | Preserve native configured membership and method validation. |
+
+A non-null `clients` array takes precedence over `users`, matching the native
+builder. Explicit managed empty ChaCha mode returns `ErrUnsupportedConfiguration`:
+the pinned engine has no ChaCha multi-user implementation. Omit membership for
+intentional native single-user configuration instead of relying on an empty array.
+
+Only the explicit empty AES path adds one native `xray convert pb` invocation
+per Validate or Start. It consumes original source plus the same private API
+overlay. Generated native messages change the selected compiled inbound mode;
+receiver settings, other inbounds, outbounds and apps are preserved. Mismatched
+compiled identity/order/mode fails. Native check and long-running execution then
+consume the **same prepared protobuf file**. Engine execution stays in the owned
+subprocess; conversion uses the installed native builder and pinned protocol types.
+
+The compiled response read is capped at **64 MiB** with `ErrConfigTooLarge` on
+overflow. This serialized-byte limit is not a heap or child-filesystem sandbox.
+The owned 0700 directory contains a 0600 `effective.pb`, including sensitive
+credentials; it is removed after validation, failed/cancelled preparation and
+session cleanup. Conversion uses the same explicit environment, bounded
+diagnostics, timeout and pipe wait as native checking. `CheckError` retains actual
+conversion/validation exit causes and keeps diagnostics out of default errors.
+`Source` and configuration revisions still describe original captured JSON,
+not temporary compiled bytes or socket paths.
+
+Native checks cover zero membership, denied server-key traffic, restart,
+single-user intent, validation/start consistency, healthy execution reuse,
+permissions and cleanup. Cancellation during a real blocked certificate read
+joins the converter before removing its files. This establishes empty-state
+preparation and observation; typed live Shadowsocks2022 account mutations are
+not supported by this revision's account input.

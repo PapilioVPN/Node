@@ -56,26 +56,23 @@ func NewChecker(options CheckerOptions) (*Checker, error) {
 // bounded diagnostic tail. Native validation is neither readiness nor a sandbox:
 // Xray may access resources referenced by config under the caller's privileges.
 func (c *Checker) Check(ctx context.Context, config []byte) error {
-	return c.check(ctx, config, "")
+	return c.check(ctx, nativeInput{format: "json", paths: []string{"stdin:"}, stdin: config})
 }
 
-func (c *Checker) check(ctx context.Context, config []byte, overlay string) error {
+func (c *Checker) check(ctx context.Context, input nativeInput) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("check Xray configuration: %w", err)
 	}
-	if len(config) > c.options.MaxConfigBytes {
+	if len(input.stdin) > c.options.MaxConfigBytes {
 		return ErrConfigTooLarge
 	}
 	ctx, cancel := context.WithTimeout(ctx, c.options.Timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, c.options.Executable, "run", "-test", "-format=json", "-c", "stdin:")
-	if overlay != "" {
-		cmd.Args = append(cmd.Args, "-c", overlay)
-	}
+	cmd := exec.CommandContext(ctx, c.options.Executable, input.arguments(true)...)
 	cmd.Dir = c.options.WorkingDir
 	cmd.Env = nativeEnvironment(c.options.AssetsDir)
-	cmd.Stdin = bytes.NewReader(config)
+	cmd.Stdin = bytes.NewReader(input.stdin)
 	output := diagnosticTail{data: make([]byte, c.options.MaxDiagnosticBytes)}
 	// os/exec serializes writes when stdout and stderr share the same writer.
 	cmd.Stdout, cmd.Stderr = &output, &output

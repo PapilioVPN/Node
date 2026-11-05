@@ -71,6 +71,9 @@ jobs:
       - name: Fuzz native account credential mapping
         run: go test ./internal/cores/xray -run='^$' -fuzz='^FuzzAccountCredentialKey$' -fuzztime=5s -parallel=2
 
+      - name: Fuzz managed Shadowsocks2022 preparation
+        run: go test ./internal/cores/xray -run='^$' -fuzz='^FuzzManaged2022Preparation$' -fuzztime=5s -parallel=2
+
       - name: Build native executable
         run: go build -trimpath -o bin/node ./cmd/node
 

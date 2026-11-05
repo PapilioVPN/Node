@@ -30,6 +30,8 @@ func (l *Launcher) Source() []byte { return bytes.Clone(l.config) }
 // Validate checks the same source and API preparation as Start without listeners.
 // Validation is a point-in-time check; executable/assets can change afterwards.
 func (l *Launcher) Validate(ctx context.Context) (err error) {
+	ctx, cancelTimeout := context.WithTimeout(ctx, l.options.Check.Timeout)
+	defer cancelTimeout()
 	ctx, cancel := context.WithCancelCause(ctx)
 	stopWatch := context.AfterFunc(l.lifetime, func() { cancel(context.Cause(l.lifetime)) })
 	defer stopWatch()
@@ -40,7 +42,7 @@ func (l *Launcher) Validate(ctx context.Context) (err error) {
 	if err := l.lifetime.Err(); err != nil {
 		return context.Cause(l.lifetime)
 	}
-	prepared, err := l.prepareConfiguration()
+	prepared, err := l.prepareConfiguration(ctx)
 	if err != nil {
 		return err
 	}
@@ -52,12 +54,15 @@ func (l *Launcher) Validate(ctx context.Context) (err error) {
 			err = errors.Join(err, context.Cause(ctx))
 		}
 	}()
-	return l.checker.check(ctx, l.config, prepared.path)
+	return l.checker.check(ctx, prepared.input)
 }
 
-type preparedConfiguration struct{ directory, path, socket string }
+type preparedConfiguration struct {
+	directory, socket string
+	input             nativeInput
+}
 
-func (l *Launcher) prepareConfiguration() (prepared preparedConfiguration, err error) {
+func (l *Launcher) prepareConfiguration(ctx context.Context) (prepared preparedConfiguration, err error) {
 	directory, err := os.MkdirTemp(l.options.RuntimeDir, "xray-")
 	if err != nil {
 		return prepared, fmt.Errorf("create Xray runtime directory: %w", err)
@@ -78,9 +83,21 @@ func (l *Launcher) prepareConfiguration() (prepared preparedConfiguration, err e
 	if err != nil {
 		return prepared, fmt.Errorf("prepare Xray API configuration: %w", err)
 	}
-	prepared.path = filepath.Join(directory, "api.json")
-	if err := os.WriteFile(prepared.path, overlay, 0600); err != nil {
+	path := filepath.Join(directory, "api.json")
+	if err := os.WriteFile(path, overlay, 0600); err != nil {
 		return prepared, fmt.Errorf("write Xray API configuration: %w", err)
+	}
+	prepared.input = nativeInput{format: "json", paths: []string{"stdin:", path}, stdin: l.config}
+	selection, err := selectEmpty2022(l.config)
+	if err != nil {
+		return prepared, fmt.Errorf("inspect Xray managed membership: %w", err)
+	}
+	if len(selection.empties) != 0 {
+		compiled := filepath.Join(directory, "effective.pb")
+		if err := l.checker.compile(ctx, l.config, path, compiled, selection); err != nil {
+			return prepared, err
+		}
+		prepared.input = nativeInput{format: "protobuf", paths: []string{compiled}}
 	}
 	return prepared, nil
 }

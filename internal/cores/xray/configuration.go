@@ -12,7 +12,7 @@ import (
 
 func configurationRevision(config []byte) instance.Revision {
 	digest := sha256.New()
-	digest.Write([]byte("papilio/xray/api-overlay/v2\x00"))
+	digest.Write([]byte("papilio/xray/preparation/v3\x00"))
 	digest.Write(config)
 	return instance.Revision(hex.EncodeToString(digest.Sum(nil)))
 }
