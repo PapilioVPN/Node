@@ -125,6 +125,51 @@ func TestXrayProcessLifetimeOwnsMinimalSession(t *testing.T) {
 	}
 }
 
+func TestXrayValidationPreservesLiveRuntimeAndBorrowedFiles(t *testing.T) {
+	launcher, _, root := nativeLauncher(t,
+		[]byte(`{"log":{"loglevel":"none"},"outbounds":[{"protocol":"freedom"}]}`))
+	borrowed := filepath.Join(root, "caller-owned")
+	if err := os.WriteFile(borrowed, []byte("retain"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	session, err := launcher.Start(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		assertNativeShutdown(t, session.Stop(ctx))
+	})
+	before, err := os.ReadDir(root)
+	if err != nil || len(before) != 2 {
+		t.Fatal("missing live runtime or borrowed file", before, err)
+	}
+	if err := launcher.Validate(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadDir(root)
+	if err != nil || len(after) != len(before) {
+		t.Fatal("validation retained or removed another owner's files", after, err)
+	}
+	for i := range before {
+		if after[i].Name() != before[i].Name() {
+			t.Fatal("validation replaced another owner's runtime")
+		}
+	}
+	if err := session.Probe(t.Context()); err != nil {
+		t.Fatal("validation disrupted the live native API", err)
+	}
+	assertNativeShutdown(t, session.Stop(t.Context()))
+	remaining, err := os.ReadDir(root)
+	if err != nil || len(remaining) != 1 || remaining[0].Name() != "caller-owned" {
+		t.Fatal("session cleanup crossed its ownership boundary", remaining, err)
+	}
+	if data, err := os.ReadFile(borrowed); err != nil || string(data) != "retain" {
+		t.Fatal("borrowed content changed", err)
+	}
+}
+
 func TestXrayStopContinuesAfterCallerCancellation(t *testing.T) {
 	launcher, _, _ := nativeLauncher(t,
 		[]byte(`{"log":{"loglevel":"none"},"outbounds":[{"protocol":"freedom"}]}`))

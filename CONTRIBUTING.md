@@ -281,8 +281,11 @@ engine owner or duplicating native lifecycle code. `replacement.go` owns scoped
 replacement admission, activation and joined release, shared by restart and
 configuration application. Configuration declarations/read admission stay in
 `service.go`; `validate.go` and `apply.go` own their respective workflows.
-Within Xray, `revision_linux.go` owns fresh candidate capture, original-source
-reads and native effective-input validation/preparation shared with startup.
+Within Xray, `candidate_linux.go` owns captured inputs, revision/source access
+and validation lifetime. `runtime_configuration_linux.go` prepares private JSON
+or protobuf input and owns its runtime files. Validation releases its own files;
+startup transfers file ownership to the running session after the child starts.
+The session reaper closes them after joining the child and native client.
 `instance/access.go` owns cancellable access to one ready execution; Stop joins
 its release. `users/service.go` owns query contracts, input/admission bounds and
 composition; `queries.go` owns focused reads. `xray/users_linux.go` owns generated

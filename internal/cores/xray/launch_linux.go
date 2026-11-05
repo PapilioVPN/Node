@@ -5,59 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/papilio-platform/Node/internal/enginelog"
 	"github.com/papilio-platform/Node/internal/instance"
 )
-
-// LaunchOptions supplies the native environment and owned runtime limits.
-type LaunchOptions struct {
-	Check        CheckerOptions
-	RuntimeDir   string
-	ReadyTimeout time.Duration
-	StopTimeout  time.Duration
-	// Logs explicitly opts into sensitive console capture. The binding's
-	// composition owns this buffer across runs and closes it after joining them.
-	Logs *enginelog.Buffer
-}
-
-// Launcher binds one captured configuration to an explicit process lifetime.
-type Launcher struct {
-	lifetime context.Context
-	options  LaunchOptions
-	config   []byte
-	checker  *Checker
-	revision instance.Revision
-}
-
-// NewLauncher captures inputs without starting an engine.
-func NewLauncher(lifetime context.Context, options LaunchOptions, config []byte) (*Launcher, error) {
-	checker, err := NewChecker(options.Check)
-	if err != nil {
-		return nil, err
-	}
-	if !filepath.IsAbs(options.RuntimeDir) {
-		return nil, errors.New("Xray runtime directory must be absolute")
-	}
-	if options.ReadyTimeout <= 0 || options.StopTimeout <= 0 {
-		return nil, errors.New("Xray readiness and shutdown bounds must be positive")
-	}
-	if len(config) > options.Check.MaxConfigBytes {
-		return nil, ErrConfigTooLarge
-	}
-	captured := bytes.Clone(config)
-	return &Launcher{lifetime: lifetime, options: options, config: captured,
-		checker: checker, revision: configurationRevision(captured)}, nil
-}
-
-// Revision identifies original bytes and the execution policy, excluding the
-// temporary socket path and externally referenced file contents.
-func (l *Launcher) Revision() instance.Revision { return l.revision }
 
 // Start checks configuration and returns after the private native API responds.
 // Cancellation before success joins cleanup. After success l.lifetime owns the
@@ -78,11 +32,10 @@ func (l *Launcher) Start(ctx context.Context) (session instance.ISession, err er
 		return nil, err
 	}
 	versionObservedAt := time.Now().UTC()
-	prepared, err := l.prepareConfiguration(ctx)
+	prepared, err := prepareRuntimeConfiguration(ctx, l.config, l.options.RuntimeDir, l.checker)
 	if err != nil {
 		return nil, err
 	}
-	directory := prepared.directory
 	var run *Session
 	var api *nativeAPI
 	defer func() {
@@ -98,7 +51,7 @@ func (l *Launcher) Start(ctx context.Context) (session instance.ISession, err er
 			if api != nil {
 				cleanupErr = api.connection.Close()
 			}
-			cleanupErr = errors.Join(cleanupErr, os.RemoveAll(directory))
+			cleanupErr = errors.Join(cleanupErr, prepared.files.close())
 			if cleanupErr != nil {
 				err = errors.Join(err, instance.ErrCleanupIncomplete, cleanupErr)
 			}
@@ -149,7 +102,7 @@ func (l *Launcher) Start(ctx context.Context) (session instance.ISession, err er
 		stopProcess()
 		return nil, fmt.Errorf("start Xray process: %w", startErr)
 	}
-	run = &Session{cmd: cmd, api: api, directory: directory, output: output,
+	run = &Session{cmd: cmd, api: api, files: prepared.files, output: output,
 		runtimeLogs: runtimeLogs,
 		context:     processCtx, cancel: stopProcess, done: make(chan struct{}),
 		probeTimeout: l.options.ReadyTimeout,

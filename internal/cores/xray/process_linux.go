@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -21,7 +20,7 @@ var ErrSessionExited = errors.New("Xray session has exited")
 type Session struct {
 	cmd          *exec.Cmd
 	api          *nativeAPI
-	directory    string
+	files        runtimeFiles
 	output       *diagnosticTail
 	runtimeLogs  *runtimeOutput
 	context      context.Context
@@ -115,7 +114,7 @@ func (s *Session) reap() {
 		// A graceful exit after CommandContext cancellation reports its context.
 		err = nil
 	}
-	cleanupErr := errors.Join(s.api.connection.Close(), os.RemoveAll(s.directory))
+	cleanupErr := errors.Join(s.api.connection.Close(), s.files.close())
 	err = errors.Join(err, cleanupErr)
 	if cleanupErr != nil {
 		err = errors.Join(instance.ErrCleanupIncomplete, err)
