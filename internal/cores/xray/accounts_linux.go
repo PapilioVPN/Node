@@ -2,7 +2,6 @@ package xray
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/papilio-platform/Node/internal/instance"
@@ -58,7 +57,11 @@ func (a *UserAccounts) Check(ctx context.Context, session instance.ISession, inb
 	if err != nil {
 		return users.AccountCheck{}, err
 	}
-	records, err := a.readAccounts(ctx, api.handlers, inbound, binding)
+	records, err := a.readAccounts(ctx, api.handlers, inbound)
+	if err != nil {
+		return users.AccountCheck{}, err
+	}
+	current, err := selectAccount(ctx, records, account.Email, key, binding)
 	if err != nil {
 		return users.AccountCheck{}, err
 	}
@@ -66,12 +69,8 @@ func (a *UserAccounts) Check(ctx context.Context, session instance.ISession, inb
 	if err != nil {
 		return users.AccountCheck{}, err
 	}
-	current, err := selectAccount(records, account.Email, key, binding.family)
-	if err != nil {
-		return users.AccountCheck{}, err
-	}
-	if current == nil {
-		return users.AccountCheck{Prepared: account, DesiredRevision: desiredRevision, AtCapacity: len(records) >= a.options.MaxUsers}, nil
+	if current.user == nil {
+		return users.AccountCheck{Prepared: account, DesiredRevision: desiredRevision, AtCapacity: len(records.users) >= a.options.MaxUsers}, nil
 	}
 	if !current.replaceable {
 		return users.AccountCheck{}, users.ErrUnsupported
@@ -95,16 +94,16 @@ func (a *UserAccounts) CheckRemoval(ctx context.Context, session instance.ISessi
 	if err != nil {
 		return users.RemovalCheck{}, err
 	}
-	records, err := a.readAccounts(ctx, api.handlers, inbound, binding)
+	records, err := a.readAccounts(ctx, api.handlers, inbound)
 	if err != nil {
 		return users.RemovalCheck{}, err
 	}
-	current, err := selectAccount(records, email, "", binding.family)
+	current, err := selectAccount(ctx, records, email, "", binding)
 	if err != nil {
 		return users.RemovalCheck{}, err
 	}
 	result := users.RemovalCheck{}
-	if current != nil {
+	if current.user != nil {
 		result.Exists = true
 		revision, err := fingerprintAccount(api.revisionKey, current.user)
 		if err != nil {
@@ -113,27 +112,4 @@ func (a *UserAccounts) CheckRemoval(ctx context.Context, session instance.ISessi
 		result.Revision = revision
 	}
 	return result, nil
-}
-
-func selectAccount(records []nativeAccount, email, desiredKey string, family users.Protocol) (*nativeAccount, error) {
-	var current *nativeAccount
-	identity := strings.ToLower(email)
-	for i := range records {
-		if strings.ToLower(records[i].user.Email) == identity || family == users.Shadowsocks && strings.EqualFold(records[i].user.Email, email) {
-			if current != nil {
-				return nil, users.ErrConflict
-			}
-			current = &records[i]
-		}
-	}
-	for i := range records {
-		record := &records[i]
-		if record == current {
-			continue
-		}
-		if desiredKey != "" && record.key == desiredKey || current != nil && record.key == current.key || family == users.VMess && strings.EqualFold(record.user.Email, email) {
-			return nil, users.ErrConflict
-		}
-	}
-	return current, nil
 }

@@ -311,6 +311,57 @@ func TestAccountInspectionDoesNotReadPerUser(t *testing.T) {
 	}
 }
 
+func TestAccountInspectionValidatesRecordsAfterCredentialConflict(t *testing.T) {
+	for _, order := range [][]int{{0, 1, 2}, {2, 0, 1}, {1, 2, 0}} {
+		t.Run(fmt.Sprint(order), func(t *testing.T) {
+			a, s, c, account := accountFixture(t, users.Trojan)
+			current, err := encodeAccount(account)
+			if err != nil {
+				t.Fatal(err)
+			}
+			alias := proto.Clone(current).(*protocol.User)
+			alias.Email = "other"
+			records := []*protocol.User{current, alias, nil}
+			for _, i := range order {
+				c.response = append(c.response, records[i])
+			}
+			c.count = int64(len(records))
+			if _, err := a.Check(t.Context(), s, "owned", account); !errors.Is(err, users.ErrUnsupported) {
+				t.Fatal("credential conflict bypassed complete native validation", err)
+			}
+			if _, err := a.CheckRemoval(t.Context(), s, "owned", account.Email); !errors.Is(err, users.ErrUnsupported) || c.alters != 0 {
+				t.Fatal("removal bypassed complete native validation", err)
+			}
+		})
+	}
+}
+
+func TestAccountInspectionCredentialConflictIsIndependentOfOrder(t *testing.T) {
+	for _, order := range [][]int{{0, 1, 2}, {2, 0, 1}, {1, 2, 0}} {
+		t.Run(fmt.Sprint(order), func(t *testing.T) {
+			a, s, c, account := accountFixture(t, users.Trojan)
+			current, err := encodeAccount(account)
+			if err != nil {
+				t.Fatal(err)
+			}
+			alias := proto.Clone(current).(*protocol.User)
+			alias.Email = "other"
+			unrelated := &protocol.User{Email: "unrelated", Account: serial.ToTypedMessage(&trojan.Account{Password: "different"})}
+			records := []*protocol.User{current, alias, unrelated}
+			for _, i := range order {
+				c.response = append(c.response, records[i])
+			}
+			c.count = int64(len(records))
+			if _, err := a.Check(t.Context(), s, "owned", account); !errors.Is(err, users.ErrConflict) {
+				t.Fatal("input order concealed an authentication alias", err)
+			}
+			if _, err := a.CheckRemoval(t.Context(), s, "owned", account.Email); !errors.Is(err, users.ErrConflict) || c.alters != 0 {
+				t.Fatal("input order admitted unsafe removal", err)
+			}
+		})
+	}
+}
+
 func FuzzAccountCredentialKey(f *testing.F) {
 	f.Add(byte(0), serial.ToTypedMessage(&vmess.Account{Id: "00000000-0000-4000-8000-000000000001"}).Value)
 	f.Add(byte(1), serial.ToTypedMessage(&vless.Account{Id: "00000000-0000-4000-8000-000000000001"}).Value)

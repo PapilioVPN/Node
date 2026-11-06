@@ -323,6 +323,9 @@ No user/protocol methods were added to lifecycle `ISession`.
 writer contracts; `commands.go` coordinates conditional Create/Replace/Remove
 through the existing instance access. Xray's `account_encoding.go` owns pure
 native mapping, authentication keys and keyed revisions; `account_observation_linux.go`
-executes bounded native inspection, `accounts_linux.go` checks its focused facts,
-and `account_mutation_linux.go` executes individual native writes. Credentials
-stay at that adapter boundary; metadata revisions share the session's private key.
+reads bounded native facts. `account_selection.go` validates credentials and
+selects the account without I/O or another per-account record array; conflicts
+never bypass complete native-record validation. `accounts_linux.go` checks those
+facts and `account_mutation_linux.go` executes individual native writes. No account
+snapshot is cached across operations. Credentials stay at that adapter boundary;
+metadata revisions share the session's private key.

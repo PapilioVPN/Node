@@ -6,17 +6,10 @@ import (
 
 	"github.com/papilio-platform/Node/internal/users"
 	"github.com/xtls/xray-core/app/proxyman/command"
-	"github.com/xtls/xray-core/common/protocol"
 	ss2022 "github.com/xtls/xray-core/proxy/shadowsocks_2022"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 )
-
-type nativeAccount struct {
-	user        *protocol.User
-	key         string
-	replaceable bool
-}
 
 // The native API has no focused inbound-type or credential-index query. Bounds
 // apply to its whole responses; account records never escape this adapter.
@@ -69,37 +62,23 @@ func (a *UserAccounts) readBinding(ctx context.Context, client command.HandlerSe
 	return binding, nil
 }
 
-func (a *UserAccounts) readAccounts(ctx context.Context, client command.HandlerServiceClient, inbound string, binding accountBinding) ([]nativeAccount, error) {
+func (a *UserAccounts) readAccounts(ctx context.Context, client command.HandlerServiceClient, inbound string) (accountCollection, error) {
 	count, err := readUserCount(ctx, client, inbound, a.options.ReplyBytes)
 	if err != nil {
-		return nil, err
+		return accountCollection{}, err
 	}
 	if count > int64(a.options.MaxUsers) {
-		return nil, users.ErrLimit
+		return accountCollection{}, users.ErrLimit
 	}
 	collection, err := client.GetInboundUsers(ctx, &command.GetInboundUserRequest{Tag: inbound}, grpc.MaxCallRecvMsgSize(a.options.ReplyBytes))
 	if err != nil {
-		return nil, userQueryError(ctx, err)
+		return accountCollection{}, userQueryError(ctx, err)
 	}
 	if collection == nil {
-		return nil, errors.New("missing Xray account collection")
+		return accountCollection{}, errors.New("missing Xray account collection")
 	}
 	if len(collection.Users) > a.options.MaxUsers {
-		return nil, users.ErrLimit
+		return accountCollection{}, users.ErrLimit
 	}
-	records := make([]nativeAccount, 0, len(collection.Users))
-	for _, user := range collection.Users {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		key, replaceable, err := accountKey(user, binding)
-		if err != nil {
-			return nil, err
-		}
-		records = append(records, nativeAccount{user: user, key: key, replaceable: replaceable})
-	}
-	if int64(len(records)) != count {
-		return nil, users.ErrConflict
-	}
-	return records, nil
+	return accountCollection{users: collection.Users, count: count}, nil
 }
